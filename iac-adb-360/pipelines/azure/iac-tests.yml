@@ -17,9 +17,7 @@ variables:
     - group: vgprdadb360
 
 pool:
-  # vmImage: 'ubuntu-latest'
-  name: 'MyAgentPool'
-
+  vmImage: ubuntu-latest
 
 stages:
 - stage: iactest

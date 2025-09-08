@@ -21,8 +21,8 @@ stages:
   jobs:
   - job: j_createcatalogandschema
     displayName: 'job create catalog and schema'
-    pool:
-      name: 'MyNewAgent'
+  pool:
+    vmImage: ubuntu-latest
     steps:
     - task: CmdLine@2
       inputs:

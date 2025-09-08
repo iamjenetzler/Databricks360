@@ -21,8 +21,7 @@ variables:
     - group: vgadb360sccprd
 
 pool:
-  # vmImage: ubuntu-latest
-  name: 'MyNewAgent'
+  vmImage: ubuntu-latest
 
 stages:
   - stage: checkbiceps

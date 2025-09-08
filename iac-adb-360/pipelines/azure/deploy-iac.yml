@@ -21,8 +21,8 @@ variables:
 
 
 pool:
-  # vmImage: ubuntu-latest
-  name: 'MyNewAgent'
+  vmImage: ubuntu-latest
+  
 
 
 

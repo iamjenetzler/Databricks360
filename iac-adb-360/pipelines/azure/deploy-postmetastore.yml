@@ -45,8 +45,8 @@ stages:
   jobs:
   - job: j_assignrepo
     displayName: 'Job assign repository to spn'
-    pool:
-      name: 'MyNewAgent'
+  pool:
+    vmImage: ubuntu-latest
     steps:
     - task: CmdLine@2
       inputs:

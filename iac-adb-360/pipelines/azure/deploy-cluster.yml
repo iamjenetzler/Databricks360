@@ -9,8 +9,8 @@ trigger:
 
 
 pool:
-  # vmImage: 'ubuntu-latest'
-  name: 'MyNewAgent'
+  vmImage: 'ubuntu-latest'
+
 
 variables:
 - group: devadb0925
