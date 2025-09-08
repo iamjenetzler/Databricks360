@@ -28,7 +28,7 @@ stages:
   - job: j_assignrepo
     displayName: 'Job assign repository to spn'
     pool:
-      vmImage: 'ubuntu-latest'
+      name: 'MyNewAgent'
     steps:
 
     - script: |
@@ -52,7 +52,7 @@ stages:
   - job: j_createcatalogandschema
     displayName: 'job create catalog and schema'
     pool:
-      vmImage: 'ubuntu-latest'
+      name: 'MyNewAgent'
     steps:
 
     - script: |
