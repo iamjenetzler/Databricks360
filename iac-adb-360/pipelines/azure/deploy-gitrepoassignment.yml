@@ -26,8 +26,8 @@ stages:
   jobs:
   - job: j_assignrepo
     displayName: 'Job assign repository to spn'
-    pool:
-      vmImage: 'MyNewAgent
+  pool:
+    vmImage: ubuntu-latest
     steps:
 
     - script: |

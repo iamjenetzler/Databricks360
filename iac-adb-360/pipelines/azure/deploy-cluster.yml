@@ -9,7 +9,7 @@ trigger:
 
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: ubuntu-latest
 
 
 variables:
@@ -21,7 +21,7 @@ jobs:
   displayName: 'Install Cluster'
   environment: 'dev'
   pool:
-    name: 'MyNewAgent'
+  vmImage: ubuntu-latest
   
   strategy:
     runOnce:

@@ -22,8 +22,8 @@ stages:
   jobs:
   - job: j_assignmetastore
     displayName: 'job assign workspace to metastore'
-    pool:
-      name: 'MyNewAgent'
+  pool:
+    vmImage: ubuntu-latest
     steps:
     - task: CmdLine@2
       inputs:
