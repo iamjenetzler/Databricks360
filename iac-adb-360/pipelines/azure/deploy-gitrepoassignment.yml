@@ -27,7 +27,7 @@ stages:
   - job: j_assignrepo
     displayName: 'Job assign repository to spn'
   pool:
-    vmImage: ubuntu-latest
+    vmImage: jensazureagentpool
     steps:
 
     - script: |

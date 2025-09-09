@@ -23,7 +23,7 @@ stages:
   - job: j_assignmetastore
     displayName: 'job assign workspace to metastore'
   pool:
-    vmImage: ubuntu-latest
+    vmImage: jensazureagentpool
     steps:
     - task: CmdLine@2
       inputs:
@@ -46,7 +46,7 @@ stages:
   - job: j_assignrepo
     displayName: 'Job assign repository to spn'
   pool:
-    vmImage: ubuntu-latest
+    vmImage: jensazureagentpool
     steps:
     - task: CmdLine@2
       inputs:
