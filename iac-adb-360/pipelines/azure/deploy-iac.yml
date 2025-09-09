@@ -21,7 +21,7 @@ variables:
 
 
 pool:
-  vmImage: jensazureagentpool
+  name: jensazureagentpool
   
 
 
