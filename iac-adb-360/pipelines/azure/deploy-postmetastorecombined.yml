@@ -17,7 +17,7 @@ variables:
 
 
 pool:
-  # vmImage: 'ubuntu-latest'
+  # name: 'ubuntu-latest'
   name: 'MyNewAgent'
 
 stages:
@@ -28,7 +28,7 @@ stages:
   - job: j_assignrepo
     displayName: 'Job assign repository to spn'
   pool:
-    vmImage: jensazureagentpool
+    name: jensazureagentpool
     steps:
 
     - script: |
@@ -52,7 +52,7 @@ stages:
   - job: j_createcatalogandschema
     displayName: 'job create catalog and schema'
   pool:
-    vmImage: jensazureagentpool
+    name: jensazureagentpool
     steps:
 
     - script: |

@@ -17,7 +17,7 @@ variables:
     - group: vgprdadb360
 
 pool:
-  vmImage: jensazureagentpool
+  name: jensazureagentpool
 
 stages:
 - stage: iactest

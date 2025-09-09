@@ -17,7 +17,7 @@ variables:
 
 
 pool:
-  vmImage: jensazureagentpool
+  name: jensazureagentpool
 
 stages:
 
@@ -27,7 +27,7 @@ stages:
   - job: j_assignrepo
     displayName: 'Job assign repository to spn'
   pool:
-    vmImage: jensazureagentpool
+    name: jensazureagentpool
     steps:
 
     - script: |

@@ -22,7 +22,7 @@ stages:
   - job: j_createcatalogandschema
     displayName: 'job create catalog and schema'
   pool:
-    vmImage: jensazureagentpool
+    name: jensazureagentpool
     steps:
     - task: CmdLine@2
       inputs:

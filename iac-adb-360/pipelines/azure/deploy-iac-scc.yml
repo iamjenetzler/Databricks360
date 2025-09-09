@@ -21,7 +21,7 @@ variables:
     - group: vgadb360sccprd
 
 pool:
-  vmImage: jensazureagentpool
+  name: jensazureagentpool
 
 stages:
   - stage: checkbiceps

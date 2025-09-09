@@ -9,7 +9,7 @@ trigger:
 
 
 pool:
-  vmImage: jensazureagentpool
+  name: jensazureagentpool
 
 
 variables:
@@ -21,7 +21,7 @@ jobs:
   displayName: 'Install Cluster'
   environment: 'dev'
   pool:
-  vmImage: jensazureagentpool
+  name: jensazureagentpool
   
   strategy:
     runOnce:
