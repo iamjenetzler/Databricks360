@@ -31,7 +31,7 @@ stages:
   - job: UpdateVMJob
     displayName: Update VMSS Job
     steps:
-    - task: AzureCLI2
+    - task: AzureCLI@2
       inputs:
         scriptType: bash
         scriptLocation: inlineScript
