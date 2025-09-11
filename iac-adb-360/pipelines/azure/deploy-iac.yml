@@ -38,43 +38,42 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          set -euxo pipefail
+              set -euxo pipefail
 
-          # Azure CLI repo (idempotent)
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+              # DO NOT reinstall Azure CLI inside AzureCLI@2; az is already present.
 
-          # Install Bicep into this task's AZURE_CONFIG_DIR, then make it global
-          az bicep install
-          BICEP_SRC="${AZURE_CONFIG_DIR:-$HOME/.azure}/bin/bicep"
-          sudo install -m 0755 "$BICEP_SRC" /usr/local/bin/bicep
-          /usr/local/bin/bicep --version
+              # Install Bicep and make it globally available for later tasks
+              az bicep install
+              BICEP_SRC="${AZURE_CONFIG_DIR:-$HOME/.azure}/bin/bicep"
+              sudo install -m 0755 "$BICEP_SRC" /usr/local/bin/bicep
+              /usr/local/bin/bicep --version
 
-          # Base utils
-          sudo apt-get update -y
-          sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
+              # Base utils (quiet, noninteractive)
+              sudo DEBIAN_FRONTEND=noninteractive apt-get -yq update
+              sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install unzip ca-certificates curl lsb-release gnupg
 
-          # Databricks CLI — skip if present (avoid exit 1)
-          if command -v databricks >/dev/null 2>&1; then
-            echo "Databricks CLI present at $(command -v databricks); skipping reinstall."
-          else
-            curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-          fi
-          databricks --version || true
+              # Databricks CLI — skip if already installed
+              if command -v databricks >/dev/null 2>&1; then
+                echo "Databricks CLI present at $(command -v databricks); skipping reinstall."
+              else
+                curl -fsSL --connect-timeout 10 --retry 3 https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+              fi
+              databricks --version || true
 
-          # VS Code via snap (best-effort)
-          if command -v snap >/dev/null 2>&1; then
-            sudo snap install --classic code || true
-          fi
-    - task: AzureCLI@2
-      displayName: Install Bicep
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euxo pipefail
-          az bicep install
-          az bicep build --file ./iac-adb-360/main.bicep
+              # VS Code via snap (best-effort)
+              if command -v snap >/dev/null 2>&1; then
+                sudo snap install --classic code || true
+              fi
+            - task: AzureCLI@2
+              displayName: Install Bicep
+              inputs:
+                azureSubscription: 'ado-sc'
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  set -euxo pipefail
+                  az bicep install
+                  az bicep build --file ./iac-adb-360/main.bicep
 
 
 
