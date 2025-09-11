@@ -64,16 +64,16 @@ stages:
               if command -v snap >/dev/null 2>&1; then
                 sudo snap install --classic code || true
               fi
-            - task: AzureCLI@2
-              displayName: Install Bicep
-              inputs:
-                azureSubscription: 'ado-sc'
-                scriptType: bash
-                scriptLocation: inlineScript
-                inlineScript: |
-                  set -euxo pipefail
-                  az bicep install
-                  az bicep build --file ./iac-adb-360/main.bicep
+    - task: AzureCLI@2
+      displayName: Install Bicep
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euxo pipefail
+          az bicep install
+          az bicep build --file ./iac-adb-360/main.bicep
 
 
 
