@@ -32,7 +32,8 @@ stages:
     displayName: Update VMSS Job
     steps:
     - task: AzureCLI@2
-      inputs:
+      inputs:  
+        azureSubscription: 'ado-sc'
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
@@ -69,6 +70,7 @@ stages:
     steps:
     - task: AzureCLI@2
       inputs:  
+        azureSubscription: 'ado-sc'
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
