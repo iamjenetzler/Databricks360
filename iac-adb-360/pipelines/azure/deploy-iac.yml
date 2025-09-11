@@ -175,14 +175,14 @@ stages:
           az version
 
     - task: validatebicep
-    displayName: Validate Bicep against Azure
-    steps:
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+      displayName: Validate Bicep against Azure
+      steps:
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: 'ado-sc'
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
 
 - stage: Deploy
   displayName: Deploy Stage
