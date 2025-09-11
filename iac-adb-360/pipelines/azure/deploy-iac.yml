@@ -157,30 +157,25 @@ stages:
 
 - stage: validatebicep
   displayName: Validate Bicep against Azure
-  # dependsOn: checkbicep
   jobs:
   - job: ValidateBicepJob
-    displayName: Validate Bicep Job
+    container: mcr.microsoft.com/azure-cli:2.72.0   # avoids the bug
     steps:
     - task: AzureCLI@2
-      displayName: Ensure latest Azure CLI in job
       inputs:
         azureSubscription: 'ado-sc'
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
           set -euo pipefail
-          # Fast in-place upgrade to newest CLI available for the image
-          az upgrade --yes || true
           az version
-          
-    - task: AzureCLI@2
-      displayName: Validate Bicep against Azure
-      inputs:     
-        azureSubscription: 'ado-sc'
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env) --debug'
+          az deployment group validate \
+            --resource-group "$(resourcegroup)" \
+            --template-file ./iac-adb-360/main.bicep \
+            --parameters baseName="$(baseName)" env="$(env)" \
+            --only-show-errors
+
+
 
 - stage: Deploy
   displayName: Deploy Stage
