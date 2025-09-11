@@ -31,7 +31,7 @@ stages:
   - job: UpdateVMJob
     displayName: Update VMSS Job
     steps:
-    - task: AzureCLI@2
+    - task: AzureCLI2
       inputs:
         scriptType: bash
         scriptLocation: inlineScript
@@ -61,13 +61,13 @@ stages:
           fi
 
 # --- Azure ops (use your service connection) ---
-- stage: AzureCLI@2
+- stage: AzureCLI2
   displayName: Ensure RG + enable per-instance Public IPs on VMSS
   jobs:
   - job: AzureCLIJob
     displayName: Azure CLI Job
     steps:
-    - task: AzureCLI@2
+    - task: AzureCLI2
       inputs:  
         scriptType: bash
         scriptLocation: inlineScript
