@@ -102,45 +102,45 @@ stages:
 
 
 # --- Azure ops (use your service connection) ---
-- stage: AzureCLI2
-  displayName: Ensure RG + enable per-instance Public IPs on VMSS
-  jobs:
-  - job: AzureCLIJob
-    displayName: Azure CLI Job
-    steps:
-    - task: AzureCLI@2
-      inputs:  
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          # Add a public IP configuration to the NIC
-          az vmss update \
-            -g 'vmssagents' -n 'vmssagentspool' \
-            --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}' \
-            -o none --only-show-errors
+# - stage: AzureCLI2
+#   displayName: Ensure RG + enable per-instance Public IPs on VMSS
+#   jobs:
+#   - job: AzureCLIJob
+#     displayName: Azure CLI Job
+#     steps:
+#     - task: AzureCLI@2
+#       inputs:  
+#         azureSubscription: 'ado-sc'
+#         scriptType: bash
+#         scriptLocation: inlineScript
+#         inlineScript: |
+#           # Add a public IP configuration to the NIC
+#           az vmss update \
+#             -g 'vmssagents' -n 'vmssagentspool' \
+#             --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}' \
+#             -o none --only-show-errors
 
-          # Apply change to existing instances
-          az vmss update-instances -g 'vmssagents' -n 'vmssagentspool' --instance-ids "*" \
-            -o none --only-show-errors
+#           # Apply change to existing instances
+#           az vmss update-instances -g 'vmssagents' -n 'vmssagentspool' --instance-ids "*" \
+#             -o none --only-show-errors
 
-          #  Show per-instance public IP
-          az vmss list-instance-public-ips \
-            -g 'vmssagents' -n 'vmssagentspool' \
-            --query "[].{id:instanceId,ip:ipAddress,name:name}" -o table
+#           #  Show per-instance public IP
+#           az vmss list-instance-public-ips \
+#             -g 'vmssagents' -n 'vmssagentspool' \
+#             --query "[].{id:instanceId,ip:ipAddress,name:name}" -o table
 
 
 
-- stage: checkbicep
-  displayName: check bicep
-  jobs:
-    - job: checkbicepjob
-      displayName: check bicep syntax
-      steps:
-        - script: |
-            echo "Checking bicep syntax..."
-            bicep build ./iac-adb-360/main.bicep
-          displayName: checking bicep syntax ...
+# - stage: checkbicep
+#   displayName: check bicep
+#   jobs:
+#     - job: checkbicepjob
+#       displayName: check bicep syntax
+#       steps:
+#         - script: |
+#             echo "Checking bicep syntax..."
+#             bicep build ./iac-adb-360/main.bicep
+#           displayName: checking bicep syntax ...
 
 # - stage: validatebicep
 #   displayName: Validate Bicep against Azure
@@ -170,47 +170,63 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          set -Eeuo pipefail
-          trap 'echo "❌ Failed on line $LINENO: $BASH_COMMAND"' ERR
-
-          # Show where we are and confirm the template exists
-          pwd
-          ls -l ./iac-adb-360 || true
-          test -f ./iac-adb-360/main.bicep
-
-          # Compile Bicep to JSON (separate step avoids the CLI streaming bug)
+          set -euo pipefail
           OUTDIR="$(Pipeline.Workspace)/bicep_out"
           mkdir -p "$OUTDIR"
           az bicep install
           az bicep build --file ./iac-adb-360/main.bicep --outdir "$OUTDIR"
           ls -l "$OUTDIR"
 
-    # 2) Validate the compiled ARM template (quiet, deterministic)
+    # 2) Validate JSON; if CLI hits the "response consumed" bug, fallback to what-if
     - task: AzureCLI@2
-      displayName: Validate ARM template (quiet)
+      displayName: Validate (with what-if fallback)
       inputs:
         azureSubscription: 'ado-sc'
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          set -Eeuo pipefail
-          trap 'echo "❌ Failed on line $LINENO: $BASH_COMMAND"' ERR
+          set -euo pipefail
 
           OUTDIR="$(Pipeline.Workspace)/bicep_out"
           TEMPLATE="$OUTDIR/main.json"
+          ERR="$OUTDIR/validate.err"
+          OUT="$OUTDIR/validate.json"
 
-          echo "Resource group: $(resourcegroup)"
-          echo "baseName: $(baseName) | env: $(env)"
+          echo "RG: $(resourcegroup)  baseName: $(baseName)  env: $(env)"
           test -f "$TEMPLATE"
 
-          # Keep output minimal to avoid the response-stream bug
+          # Try validation first (capture outputs; keep logs small)
+          set +e
           az deployment group validate \
             --resource-group "$(resourcegroup)" \
             --template-file "$TEMPLATE" \
             --parameters baseName="$(baseName)" env="$(env)" \
-            -o none --only-show-errors
+            -o json >"$OUT" 2>"$ERR"
+          RC=$?
+          set -e
 
-          echo "✅ Validation succeeded."
+          if [ $RC -eq 0 ]; then
+            echo "✅ Validation succeeded."
+            exit 0
+          fi
+
+          if grep -q "The content for this response was already consumed" "$ERR"; then
+            echo "⚠️  Azure CLI stream bug hit during validate. Falling back to what-if…"
+            # what-if will fail (non-zero) if the template/params are invalid
+            az deployment group what-if \
+              --resource-group "$(resourcegroup)" \
+              --template-file "$TEMPLATE" \
+              --parameters baseName="$(baseName)" env="$(env)" \
+              --no-pretty-print \
+              --only-show-errors
+            echo "✅ What-if completed (used as validation fallback)."
+            exit 0
+          else
+            echo "❌ Validation failed with a real error:"
+            cat "$ERR" || true
+            exit $RC
+          fi
+
 
 
 
