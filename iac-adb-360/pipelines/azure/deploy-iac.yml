@@ -173,14 +173,14 @@ stages:
           # Fast in-place upgrade to newest CLI available for the image
           az upgrade --yes || true
           az version
-          az deployment group validate ... --only-show-errors --debug
+          
     - task: AzureCLI@2
       displayName: Validate Bicep against Azure
       inputs:     
         azureSubscription: 'ado-sc'
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
-        inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+        inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env) --debug'
 
 - stage: Deploy
   displayName: Deploy Stage
