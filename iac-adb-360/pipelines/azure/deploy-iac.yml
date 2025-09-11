@@ -206,26 +206,6 @@ stages:
             --template-file "$TEMPLATE" \
             --parameters baseName="$(baseName)" env="$(env)" \
             --result-format FullResourcePayloads
-            
-    - task: validatebicep
-      displayName: Validate Bicep against Azure
-      jobs:
-        - job: ValidateBicepJob
-          displayName: Validate Bicep Job
-          steps:
-          - task: AzureCLI@2
-            inputs:
-              azureSubscription: 'ado-sc'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
-
-
-
-
-
-
-
 
 - stage: Deploy
   displayName: Deploy Stage
