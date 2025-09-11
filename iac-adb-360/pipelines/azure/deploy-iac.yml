@@ -23,9 +23,63 @@ variables:
 pool:
   name: jensazureagentpool
   
+parameters:
+  azureServiceConnection: 'ado-sc'
+  location: 'westus'
+  rgCreate: 'rg-vmss'
+  vmssRg: 'vmssagents'
+  vmssName: 'vmssagentspool'
 
+steps:
+- bash: |
+    set -euxo pipefail
 
+    # Azure CLI (safe to re-run)
+    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
+    # Bicep (install + make available to following steps)
+    az bicep install
+    echo "##vso[task.prependpath]$HOME/.azure/bin"
+    az bicep version
+    bicep --version || true
+
+    # Base utils + unzip
+    sudo apt-get update -y
+    sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
+
+    # Databricks unified CLI
+    curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+    databricks --version || true
+
+    # VS Code via snap (best effort on server images)
+    if command -v snap >/dev/null 2>&1; then
+      sudo snap install --classic code || true
+    fi
+  displayName: Bootstrap tools on agent VM
+
+# --- Azure ops (use your service connection) ---
+- task: AzureCLI@2
+  displayName: Ensure RG + enable per-instance Public IPs on VMSS
+  inputs:
+    azureSubscription: ${{ parameters.azureServiceConnection }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euxo pipefail
+      az group create -n '${{ parameters.rgCreate }}' -l '${{ parameters.location }}' -o none
+
+      # Add a public IP configuration to the NIC
+      az vmss update \
+        -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' \
+        --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}'
+
+      # Apply change to existing instances
+      az vmss update-instances -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' --instance-ids "*"
+
+      # List connection info (public IPs, ports, etc.)
+      az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table
+
+      
 stages:
   - stage: checkbicep
     displayName: check bicep
