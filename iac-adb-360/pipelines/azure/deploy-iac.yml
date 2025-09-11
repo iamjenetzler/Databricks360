@@ -25,135 +25,114 @@ pool:
   
 
 stages:
-# - stage: UpdateVM
-#   displayName: Bootstrap tools on agent VM
-#   jobs:
-#   - job: UpdateVMJob
-#     displayName: Update VMSS Job
-#     steps:
-#     - task: AzureCLI@2
-#       displayName: Bootstrap tools on agent VM
-#       inputs:
-#         azureSubscription: 'ado-sc'
-#         scriptType: bash
-#         scriptLocation: inlineScript
-#         inlineScript: |
-#           set -euo pipefail
+# --- Bootstrap tools on the self-hosted agent VM ---
+- stage: UpdateVM
+  displayName: Bootstrap tools on agent VM
+  jobs:
+  - job: UpdateVMJob
+    displayName: Update VMSS Job
+    steps:
+    - task: AzureCLI@2
+      displayName: Bootstrap tools on agent VM
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
 
-#           # Ensure bicep is available (try az, then download if needed)
-#           az bicep install || true
-#           az bicep version || true
+          # Ensure bicep is available (try az, then download if needed)
+          az bicep install || true
+          az bicep version || true
 
-#           # Locate bicep
-#           SRC=""
-#           for CAND in \
-#             "${AZURE_CONFIG_DIR:-$HOME/.azure}/bin/bicep" \
-#             "$HOME/.azure/bin/bicep" \
-#             "$(command -v bicep || true)"
-#           do
-#             if [ -n "${CAND}" ] && [ -x "${CAND}" ]; then SRC="${CAND}"; break; fi
-#           done
+          # Locate bicep binary
+          SRC=""
+          for CAND in \
+            "${AZURE_CONFIG_DIR:-$HOME/.azure}/bin/bicep" \
+            "$HOME/.azure/bin/bicep" \
+            "$(command -v bicep || true)"
+          do
+            if [ -n "${CAND}" ] && [ -x "${CAND}" ]; then SRC="${CAND}"; break; fi
+          done
 
-#           if [ -z "${SRC}" ]; then
-#             echo "Bicep not found; downloading latest..."
-#             sudo curl -fsSL -o /usr/local/bin/bicep \
-#               https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
-#             sudo chmod +x /usr/local/bin/bicep
-#           else
-#             DEST="/usr/local/bin/bicep"
-#             # Only copy if dest missing or different content
-#             if [ -x "$DEST" ] && cmp -s "$SRC" "$DEST"; then
-#               echo "Bicep already installed at $DEST (same binary); skipping copy."
-#             else
-#               echo "Installing Bicep globally to $DEST"
-#               sudo install -m 0755 "$SRC" "$DEST"
-#             fi
-#           fi
+          if [ -z "${SRC}" ]; then
+            echo "Bicep not found; downloading latest..."
+            sudo curl -fsSL -o /usr/local/bin/bicep \
+              https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
+            sudo chmod +x /usr/local/bin/bicep
+          else
+            DEST="/usr/local/bin/bicep"
+            if [ -x "$DEST" ] && cmp -s "$SRC" "$DEST"; then
+              echo "Bicep already installed at $DEST (same binary); skipping copy."
+            else
+              echo "Installing Bicep globally to $DEST"
+              sudo install -m 0755 "$SRC" "$DEST"
+            fi
+          fi
 
-#           /usr/local/bin/bicep --version
+          /usr/local/bin/bicep --version
 
-#           # Base utils
-#           sudo apt-get update -y
-#           sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
+          # Base utils
+          sudo apt-get update -y
+          sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
 
-#           # Databricks CLI — skip if present (avoid exit 1)
-#           if command -v databricks >/dev/null 2>&1; then
-#             echo "Databricks CLI present at $(command -v databricks); skipping reinstall."
-#           else
-#             curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-#           fi
-#           databricks --version || true
+          # Databricks CLI — skip if present (avoid exit 1)
+          if command -v databricks >/dev/null 2>&1; then
+            echo "Databricks CLI present at $(command -v databricks); skipping reinstall."
+          else
+            curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+          fi
+          databricks --version || true
 
-#           # VS Code via snap (best-effort)
-#           if command -v snap >/dev/null 2>&1; then
-#             sudo snap install --classic code || true
-#           fi 
-#     - task: AzureCLI@2
-#       displayName: Install Bicep
-#       inputs:
-#         azureSubscription: 'ado-sc'
-#         scriptType: bash
-#         scriptLocation: inlineScript
-#         inlineScript: |
-#           set -euxo pipefail
-#           az bicep install
-#           az bicep build --file ./iac-adb-360/main.bicep
+          # VS Code via snap (best-effort)
+          if command -v snap >/dev/null 2>&1; then
+            sudo snap install --classic code || true
+          fi 
 
+    - task: AzureCLI@2
+      displayName: Install & sanity-check Bicep
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euxo pipefail
+          az bicep install
+          az bicep build --file ./iac-adb-360/main.bicep
 
+# --- Quick syntax check (local build) ---
+- stage: checkbicep
+  displayName: check bicep
+  dependsOn: UpdateVM
+  jobs:
+  - job: checkbicepjob
+    displayName: check bicep syntax
+    steps:
+    - script: |
+        echo "Checking bicep syntax..."
+        bicep build ./iac-adb-360/main.bicep
+      displayName: checking bicep syntax ...
 
-# --- Azure ops (use your service connection) ---
-# - stage: AzureCLI2
-#   displayName: Ensure RG + enable per-instance Public IPs on VMSS
-#   jobs:
-#   - job: AzureCLIJob
-#     displayName: Azure CLI Job
-#     steps:
-#     - task: AzureCLI@2
-#       inputs:  
-#         azureSubscription: 'ado-sc'
-#         scriptType: bash
-#         scriptLocation: inlineScript
-#         inlineScript: |
-#           # Add a public IP configuration to the NIC
-#           az vmss update \
-#             -g 'vmssagents' -n 'vmssagentspool' \
-#             --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}' \
-#             -o none --only-show-errors
-
-#           # Apply change to existing instances
-#           az vmss update-instances -g 'vmssagents' -n 'vmssagentspool' --instance-ids "*" \
-#             -o none --only-show-errors
-
-#           #  Show per-instance public IP
-#           az vmss list-instance-public-ips \
-#             -g 'vmssagents' -n 'vmssagentspool' \
-#             --query "[].{id:instanceId,ip:ipAddress,name:name}" -o table
-
-
-
-# - stage: checkbicep
-#   displayName: check bicep
-#   jobs:
-#     - job: checkbicepjob
-#       displayName: check bicep syntax
-#       steps:
-#         - script: |
-#             echo "Checking bicep syntax..."
-#             bicep build ./iac-adb-360/main.bicep
-#           displayName: checking bicep syntax ...
-
-# - stage: validatebicep
-#   displayName: Validate Bicep against Azure
-#   jobs:
-#     - job: ValidateBicepJob
-#       displayName: Validate Bicep Job
-#       steps:
-#       - task: AzureCLI@2
-#         inputs:
-#           azureSubscription: 'ado-sc'
-#           scriptType: 'bash'
-#           scriptLocation: 'inlineScript'
-#           inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+# --- Validate against Azure (uses PowerShell to avoid az CLI bug) ---
+- stage: validatebicep
+  displayName: Validate Bicep against Azure
+  dependsOn: checkbicep
+  jobs:
+  - job: ValidateBicepJob
+    displayName: Validate Bicep Job
+    steps:
+    - task: AzurePowerShell@5
+      displayName: Validate Bicep (Test-AzResourceGroupDeployment)
+      inputs:
+        azureSubscription: 'ado-sc'
+        ScriptType: InlineScript
+        Inline: |
+          $ErrorActionPreference = "Stop"
+          Test-AzResourceGroupDeployment `
+            -ResourceGroupName "$(resourcegroup)" `
+            -TemplateFile "./iac-adb-360/main.bicep" `
+            -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" }
+        azurePowerShellVersion: LatestVersion
 
 - stage: validatebicep
   displayName: Validate Bicep against Azure
