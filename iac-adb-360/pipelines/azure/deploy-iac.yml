@@ -198,23 +198,34 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -euo pipefail
+
           OUTDIR="$(Pipeline.Workspace)/bicep_out"
           TEMPLATE="$OUTDIR/main.json"
 
-          echo "🔎 Running validation…"
-          # IMPORTANT: do NOT use -o none or --only-show-errors here
+          echo "SUBSCRIPTION: $(az account show --query id -o tsv)"
+          echo "RESOURCE GROUP: '$(resourcegroup)'"
+          echo "PARAM baseName='$(baseName)' env='$(env)'"
+          echo "TEMPLATE PATH: $TEMPLATE"
+
+          if [ ! -f "$TEMPLATE" ]; then
+            echo "❌ Template not found at $TEMPLATE"
+            ls -l "$OUTDIR" || true
+            exit 1
+          fi
+
+          echo "🔎 Running validation (validation-level=Provider)…"
           if ! az deployment group validate \
                 --resource-group "$(resourcegroup)" \
                 --template-file "$TEMPLATE" \
                 --parameters baseName="$(baseName)" env="$(env)" \
-                --validation-level Full \
+                --validation-level Provider \
                 --output jsonc ; then
             echo "❌ Validation failed. Re-running with --verbose for details…"
             az deployment group validate \
                 --resource-group "$(resourcegroup)" \
                 --template-file "$TEMPLATE" \
                 --parameters baseName="$(baseName)" env="$(env)" \
-                --validation-level Full \
+                --validation-level Provider \
                 --verbose
             exit 1
           fi
