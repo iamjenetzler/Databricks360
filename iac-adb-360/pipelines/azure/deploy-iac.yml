@@ -30,8 +30,8 @@ pool:
 #   vmssRg: 'vmssagents'
 #   vmssName: 'vmssagentspool'
 
-steps:
-- task: UpdateVM
+stages:
+- stage: UpdateVM
   displayName: Bootstrap tools on agent VM
   inputs:
     azureSubscription: ${{ parameters.azureServiceConnection }}
@@ -66,10 +66,8 @@ steps:
       fi
 
 # --- Azure ops (use your service connection) ---
-- task: AzureCLI@2
+- stage: AzureCLI@2
   displayName: Ensure RG + enable per-instance Public IPs on VMSS
-  dependsOn: UpdateVM
-  condition: succeeded()
   inputs:
     azureSubscription: ${{ parameters.azureServiceConnection }}
     scriptType: bash
@@ -87,50 +85,48 @@ steps:
       az vmss update-instances -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' --instance-ids "*"
 
       # List connection info (public IPs, ports, etc.)
-      az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table
+      az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table   
 
-      
-stages:
-  - stage: checkbicep
-    displayName: check bicep
-    jobs:
-      - job: checkbicepjob
-        displayName: check bicep syntax
-        steps:
-          - script: |
-              echo "Checking bicep syntax..."
-              bicep build ./iac-adb-360/main.bicep
-            displayName: checking bicep syntax ...
+- stage: checkbicep
+  displayName: check bicep
+  jobs:
+    - job: checkbicepjob
+      displayName: check bicep syntax
+      steps:
+        - script: |
+            echo "Checking bicep syntax..."
+            bicep build ./iac-adb-360/main.bicep
+          displayName: checking bicep syntax ...
 
-  - stage: validatebicep
-    displayName: Validate Bicep against Azure
-    jobs:
-      - job: ValidateBicepJob
-        displayName: Validate Bicep Job
-        steps:
-        - task: AzureCLI@2
-          inputs:
-            azureSubscription: 'ado-sc'
-            scriptType: 'bash'
-            scriptLocation: 'inlineScript'
-            inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+- stage: validatebicep
+  displayName: Validate Bicep against Azure
+  jobs:
+    - job: ValidateBicepJob
+      displayName: Validate Bicep Job
+      steps:
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: 'ado-sc'
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
 
 
-  - stage: Deploy
-    displayName: Deploy Stage
-    jobs:
-      - deployment: DeployJob
-        displayName: Deploy to dev environment
-        environment: dev
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
-                - task: AzureCLI@2
-                  inputs:
-                    azureSubscription: 'ado-sc'
-                    scriptType: 'bash'
-                    scriptLocation: 'inlineScript'
-                    inlineScript: 'az deployment group create --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
-    
+- stage: Deploy
+  displayName: Deploy Stage
+  jobs:
+    - deployment: DeployJob
+      displayName: Deploy to dev environment
+      environment: dev
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+              - checkout: self
+              - task: AzureCLI@2
+                inputs:
+                  azureSubscription: 'ado-sc'
+                  scriptType: 'bash'
+                  scriptLocation: 'inlineScript'
+                  inlineScript: 'az deployment group create --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+  
