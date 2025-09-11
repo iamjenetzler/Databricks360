@@ -44,7 +44,8 @@ stages:
 
           # Bicep (install + make available to following steps)
           az bicep install
-          echo "##vso[task.prependpath]$HOME/.azure/bin"
+          echo "AZURE_CONFIG_DIR=${AZURE_CONFIG_DIR:-$HOME/.azure}"
+          echo "##vso[task.prependpath]${AZURE_CONFIG_DIR:-$HOME/.azure}/bin"
           az bicep version
           bicep --version || true
 
