@@ -80,14 +80,14 @@ stages:
         inlineScript: |
           # Add a public IP configuration to the NIC
           az vmss update \
-            -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' \
+            -g 'vmssagents' -n 'vmssagentspool' \
             --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}'
 
           # Apply change to existing instances
-          az vmss update-instances -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' --instance-ids "*"
+          az vmss update-instances -g 'vmssagentspool' -n 'vmssagentspool' --instance-ids "*"
 
           # List connection info (public IPs, ports, etc.)
-          az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table   
+          az vmss list-instance-connection-info -g 'vmssagentspool' -n 'vmssagentspool' -o table
 
 - stage: checkbicep
   displayName: check bicep
