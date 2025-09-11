@@ -189,48 +189,36 @@ stages:
           az bicep build --file ./iac-adb-360/main.bicep --outdir "$OUTDIR"
           ls -l "$OUTDIR"
 
-    # VALIDATE — print full JSON so the real reason is visible
-    - task: AzureCLI@2
-      displayName: Validate ARM template (show errors)
+    - task: AzurePowerShell@5
+      displayName: Validate via Test-AzResourceGroupDeployment
       inputs:
         azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
+        ScriptType: 'InlineScript'
+        azurePowerShellVersion: 'LatestVersion'
+        Inline: |
+          $ErrorActionPreference = 'Stop'
+          $outDir = "$(Pipeline.Workspace)/bicep_out"
+          $template = Join-Path $outDir 'main.json'
+          if (-not (Test-Path $template)) { Write-Error "Template not found at $template" }
 
-          OUTDIR="$(Pipeline.Workspace)/bicep_out"
-          TEMPLATE="$OUTDIR/main.json"
+          $params = @{
+            ResourceGroupName = "$(resourcegroup)"
+            TemplateFile      = $template
+            TemplateParameterObject = @{
+              baseName = "$(baseName)"
+              env      = "$(env)"
+            }
+            Mode = 'Incremental'
+          }
 
-          echo "SUBSCRIPTION: $(az account show --query id -o tsv)"
-          echo "RESOURCE GROUP: '$(resourcegroup)'"
-          echo "PARAM baseName='$(baseName)' env='$(env)'"
-          echo "TEMPLATE PATH: $TEMPLATE"
+          Write-Host "🔎 Running Test-AzResourceGroupDeployment…"
+          $result = Test-AzResourceGroupDeployment @params -Verbose -ErrorAction Continue
+          if ($result -and $result.Count -gt 0) {
+            Write-Host "—— Validation output ——"
+            $result | Format-List * | Out-String | Write-Host
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Validation failed." }
 
-          if [ ! -f "$TEMPLATE" ]; then
-            echo "❌ Template not found at $TEMPLATE"
-            ls -l "$OUTDIR" || true
-            exit 1
-          fi
-
-          echo "🔎 Running validation (validation-level=Provider)…"
-          if ! az deployment group validate \
-                --resource-group "$(resourcegroup)" \
-                --template-file "$TEMPLATE" \
-                --parameters baseName="$(baseName)" env="$(env)" \
-                --validation-level Provider \
-                --output jsonc ; then
-            echo "❌ Validation failed. Re-running with --verbose for details…"
-            az deployment group validate \
-                --resource-group "$(resourcegroup)" \
-                --template-file "$TEMPLATE" \
-                --parameters baseName="$(baseName)" env="$(env)" \
-                --validation-level Provider \
-                --verbose
-            exit 1
-          fi
-
-          echo "✅ Validation succeeded."
 
     # (Optional) WHAT-IF for extra diagnostics when you’re tuning
     - task: AzureCLI@2
