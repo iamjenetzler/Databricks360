@@ -34,10 +34,10 @@ stages:
 - stage: UpdateVM
   displayName: Bootstrap tools on agent VM
   inputs:
-    azureSubscription: ${{ parameters.azureServiceConnection }}
-    resourceGroupName: ${{ parameters.vmssRg }}
-    vmScaleSetName: ${{ parameters.vmssName }}
-    upgradePolicyMode: 'Automatic'   
+    # azureSubscription: ${{ parameters.azureServiceConnection }}
+    # resourceGroupName: ${{ parameters.vmssRg }}
+    # vmScaleSetName: ${{ parameters.vmssName }}
+    # upgradePolicyMode: 'Automatic'   
     scriptType: bash
     scriptLocation: inlineScript
     inlineScript: |
