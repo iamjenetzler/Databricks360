@@ -173,7 +173,6 @@ stages:
           # Fast in-place upgrade to newest CLI available for the image
           az upgrade --yes || true
           az version
-
     - task: validatebicep
       displayName: Validate Bicep against Azure
       steps:
