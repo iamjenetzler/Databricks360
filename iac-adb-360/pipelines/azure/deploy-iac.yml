@@ -114,19 +114,20 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          az vmss show -g vmssagents -n vmssagentspool --query "virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration" -o json
-
           # Add a public IP configuration to the NIC
           az vmss update \
             -g 'vmssagents' -n 'vmssagentspool' \
-            --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}'
+            --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}' \
+            -o none --only-show-errors
 
           # Apply change to existing instances
-          az vmss update-instances -g 'vmssagents' -n 'vmssagentspool' --instance-ids "*"
+          az vmss update-instances -g 'vmssagents' -n 'vmssagentspool' --instance-ids "*" \
+            -o none --only-show-errors
 
-          # List connection info (public IPs, ports, etc.)
-          az vmss list-instance-public-ips -g vmssagents -n vmssagentspool -o table
-          az vmss list-instance-connection-info -g 'vmssagents' -n 'vmssagentspool' -o table
+          #  Show per-instance public IP
+          az vmss list-instance-public-ips \
+            -g 'vmssagents' -n 'vmssagentspool' \
+            --query "[].{id:instanceId,ip:ipAddress,name:name}" -o table
 
 
 
