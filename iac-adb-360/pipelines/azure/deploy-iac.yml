@@ -174,38 +174,15 @@ stages:
           az upgrade --yes || true
           az version
 
-    # Build Bicep -> JSON (unchanged)
+    - task: validatebicep
+    displayName: Validate Bicep against Azure
+    steps:
     - task: AzureCLI@2
-      displayName: Build Bicep to JSON
       inputs:
         azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-          OUTDIR="$(Pipeline.Workspace)/bicep_out"
-          mkdir -p "$OUTDIR"
-          az bicep install
-          az bicep build --file ./iac-adb-360/main.bicep --outdir "$OUTDIR"
-          ls -l "$OUTDIR"
-
-    # (Optional) WHAT-IF for extra diagnostics when you’re tuning
-    - task: AzureCLI@2
-      displayName: What-If (diagnostic)
-      continueOnError: true
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-          OUTDIR="$(Pipeline.Workspace)/bicep_out"
-          TEMPLATE="$OUTDIR/main.json"
-          az deployment group what-if \
-            --resource-group "$(resourcegroup)" \
-            --template-file "$TEMPLATE" \
-            --parameters baseName="$(baseName)" env="$(env)" \
-            --result-format FullResourcePayloads
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
 
 - stage: Deploy
   displayName: Deploy Stage
