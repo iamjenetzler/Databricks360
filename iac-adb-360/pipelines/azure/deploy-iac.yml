@@ -142,18 +142,61 @@ stages:
             bicep build ./iac-adb-360/main.bicep
           displayName: checking bicep syntax ...
 
+# - stage: validatebicep
+#   displayName: Validate Bicep against Azure
+#   jobs:
+#     - job: ValidateBicepJob
+#       displayName: Validate Bicep Job
+#       steps:
+#       - task: AzureCLI@2
+#         inputs:
+#           azureSubscription: 'ado-sc'
+#           scriptType: 'bash'
+#           scriptLocation: 'inlineScript'
+#           inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+
 - stage: validatebicep
   displayName: Validate Bicep against Azure
+  dependsOn: checkbicep
   jobs:
-    - job: ValidateBicepJob
-      displayName: Validate Bicep Job
-      steps:
-      - task: AzureCLI@2
-        inputs:
-          azureSubscription: 'ado-sc'
-          scriptType: 'bash'
-          scriptLocation: 'inlineScript'
-          inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+  - job: ValidateBicepJob
+    displayName: Validate Bicep Job
+    steps:
+    # 1) Compile Bicep -> JSON (explicit step)
+    - task: AzureCLI@2
+      displayName: Build Bicep to JSON
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          OUTDIR="$(Pipeline.Workspace)/bicep_out"
+          mkdir -p "$OUTDIR"
+          az bicep install
+          az bicep build --file ./iac-adb-360/main.bicep --outdir "$OUTDIR"
+          ls -l "$OUTDIR"
+
+    # 2) Validate the compiled ARM template (quiet output)
+    - task: AzureCLI@2
+      displayName: Validate ARM template
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          OUTDIR="$(Pipeline.Workspace)/bicep_out"
+          TEMPLATE="$OUTDIR/main.json"
+
+          # Use quiet output; rely on exit code for pass/fail
+          az deployment group validate \
+            --resource-group $(resourcegroup) \
+            --template-file "$TEMPLATE" \
+            --parameters baseName=$(baseName) env=$(env) \
+            -o none --only-show-errors
+
+          echo "Validation succeeded."
 
 
 - stage: Deploy
