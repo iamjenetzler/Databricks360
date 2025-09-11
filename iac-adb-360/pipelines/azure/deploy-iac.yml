@@ -157,7 +157,7 @@ stages:
 
 - stage: validatebicep
   displayName: Validate Bicep against Azure
-  dependsOn: checkbicep
+  # dependsOn: checkbicep
   jobs:
   - job: ValidateBicepJob
     displayName: Validate Bicep Job
