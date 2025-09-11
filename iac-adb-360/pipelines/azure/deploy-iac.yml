@@ -33,59 +33,64 @@ pool:
 stages:
 - stage: UpdateVM
   displayName: Bootstrap tools on agent VM
-  inputs:
-    # azureSubscription: ${{ parameters.azureServiceConnection }}
-    # resourceGroupName: ${{ parameters.vmssRg }}
-    # vmScaleSetName: ${{ parameters.vmssName }}
-    # upgradePolicyMode: 'Automatic'   
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      set -euxo pipefail
+  jobs:
+  - job: UpdateVMJob
+    displayName: Update VMSS Job
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euxo pipefail
 
-      # Azure CLI (safe to re-run)
-      curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          # Azure CLI (safe to re-run)
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-      # Bicep (install + make available to following steps)
-      az bicep install
-      echo "##vso[task.prependpath]$HOME/.azure/bin"
-      az bicep version
-      bicep --version || true
+          # Bicep (install + make available to following steps)
+          az bicep install
+          echo "##vso[task.prependpath]$HOME/.azure/bin"
+          az bicep version
+          bicep --version || true
 
-      # Base utils + unzip
-      sudo apt-get update -y
-      sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
+          # Base utils + unzip
+          sudo apt-get update -y
+          sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
 
-      # Databricks unified CLI
-      curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-      databricks --version || true
+          # Databricks unified CLI
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+          databricks --version || true
 
-      # VS Code via snap (best effort on server images)
-      if command -v snap >/dev/null 2>&1; then
-        sudo snap install --classic code || true
-      fi
+          # VS Code via snap (best effort on server images)
+          if command -v snap >/dev/null 2>&1; then
+            sudo snap install --classic code || true
+          fi
 
 # --- Azure ops (use your service connection) ---
 - stage: AzureCLI@2
   displayName: Ensure RG + enable per-instance Public IPs on VMSS
-  inputs:
-    azureSubscription: ${{ parameters.azureServiceConnection }}
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      set -euxo pipefail
-      az group create -n '${{ parameters.rgCreate }}' -l '${{ parameters.location }}' -o none
+  jobs:
+  - job: AzureCLIJob
+    displayName: Azure CLI Job
+    steps:
+    - task: AzureCLI@2
+      inputs:  
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euxo pipefail
+        az group create -n '${{ parameters.rgCreate }}' -l '${{ parameters.location }}' -o none
 
-      # Add a public IP configuration to the NIC
-      az vmss update \
-        -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' \
-        --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}'
+        # Add a public IP configuration to the NIC
+        az vmss update \
+          -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' \
+          --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}'
 
-      # Apply change to existing instances
-      az vmss update-instances -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' --instance-ids "*"
+        # Apply change to existing instances
+        az vmss update-instances -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' --instance-ids "*"
 
-      # List connection info (public IPs, ports, etc.)
-      az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table   
+        # List connection info (public IPs, ports, etc.)
+        az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table   
 
 - stage: checkbicep
   displayName: check bicep
