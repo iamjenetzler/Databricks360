@@ -161,19 +161,18 @@ stages:
   - job: ValidateBicepJob
     container: mcr.microsoft.com/azure-cli:2.72.0   # avoids the bug
     steps:
-  - task: AzurePowerShell@5
-    displayName: Validate Bicep (PowerShell)
-    inputs:
-      azureSubscription: 'ado-sc'
-      ScriptType: InlineScript
-      Inline: |
-        $ErrorActionPreference = 'Stop'
-        Test-AzResourceGroupDeployment `
-          -ResourceGroupName "$(resourcegroup)" `
-          -TemplateFile "./iac-adb-360/main.bicep" `
-          -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" }
-      azurePowerShellVersion: LatestVersion
-
+    - task: AzurePowerShell@5
+      displayName: Validate Bicep (PowerShell)
+      inputs:
+        azureSubscription: 'ado-sc'
+        ScriptType: InlineScript
+        Inline: |
+          $ErrorActionPreference = 'Stop'
+          Test-AzResourceGroupDeployment `
+            -ResourceGroupName "$(resourcegroup)" `
+            -TemplateFile "./iac-adb-360/main.bicep" `
+            -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" }
+        azurePowerShellVersion: LatestVersion  
 
 
 
