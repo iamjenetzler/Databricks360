@@ -173,7 +173,7 @@ stages:
           # Fast in-place upgrade to newest CLI available for the image
           az upgrade --yes || true
           az version
-    - task: validatebicep
+    - task: AzureCLI@2
       displayName: Validate Bicep against Azure
       inputs:     
         azureSubscription: 'ado-sc'
