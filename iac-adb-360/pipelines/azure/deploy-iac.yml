@@ -75,22 +75,22 @@ stages:
     steps:
     - task: AzureCLI@2
       inputs:  
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -euxo pipefail
-        az group create -n '${{ parameters.rgCreate }}' -l '${{ parameters.location }}' -o none
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euxo pipefail
+          az group create -n '${{ parameters.rgCreate }}' -l '${{ parameters.location }}' -o none
 
-        # Add a public IP configuration to the NIC
-        az vmss update \
-          -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' \
-          --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}'
+          # Add a public IP configuration to the NIC
+          az vmss update \
+            -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' \
+            --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}'
 
-        # Apply change to existing instances
-        az vmss update-instances -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' --instance-ids "*"
+          # Apply change to existing instances
+          az vmss update-instances -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' --instance-ids "*"
 
-        # List connection info (public IPs, ports, etc.)
-        az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table   
+          # List connection info (public IPs, ports, etc.)
+          az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table   
 
 - stage: checkbicep
   displayName: check bicep
