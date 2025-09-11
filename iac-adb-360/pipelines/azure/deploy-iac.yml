@@ -25,79 +25,79 @@ pool:
   
 
 stages:
-- stage: UpdateVM
-  displayName: Bootstrap tools on agent VM
-  jobs:
-  - job: UpdateVMJob
-    displayName: Update VMSS Job
-    steps:
-    - task: AzureCLI@2
-      displayName: Bootstrap tools on agent VM
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
+# - stage: UpdateVM
+#   displayName: Bootstrap tools on agent VM
+#   jobs:
+#   - job: UpdateVMJob
+#     displayName: Update VMSS Job
+#     steps:
+#     - task: AzureCLI@2
+#       displayName: Bootstrap tools on agent VM
+#       inputs:
+#         azureSubscription: 'ado-sc'
+#         scriptType: bash
+#         scriptLocation: inlineScript
+#         inlineScript: |
+#           set -euo pipefail
 
-          # Ensure bicep is available (try az, then download if needed)
-          az bicep install || true
-          az bicep version || true
+#           # Ensure bicep is available (try az, then download if needed)
+#           az bicep install || true
+#           az bicep version || true
 
-          # Locate bicep
-          SRC=""
-          for CAND in \
-            "${AZURE_CONFIG_DIR:-$HOME/.azure}/bin/bicep" \
-            "$HOME/.azure/bin/bicep" \
-            "$(command -v bicep || true)"
-          do
-            if [ -n "${CAND}" ] && [ -x "${CAND}" ]; then SRC="${CAND}"; break; fi
-          done
+#           # Locate bicep
+#           SRC=""
+#           for CAND in \
+#             "${AZURE_CONFIG_DIR:-$HOME/.azure}/bin/bicep" \
+#             "$HOME/.azure/bin/bicep" \
+#             "$(command -v bicep || true)"
+#           do
+#             if [ -n "${CAND}" ] && [ -x "${CAND}" ]; then SRC="${CAND}"; break; fi
+#           done
 
-          if [ -z "${SRC}" ]; then
-            echo "Bicep not found; downloading latest..."
-            sudo curl -fsSL -o /usr/local/bin/bicep \
-              https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
-            sudo chmod +x /usr/local/bin/bicep
-          else
-            DEST="/usr/local/bin/bicep"
-            # Only copy if dest missing or different content
-            if [ -x "$DEST" ] && cmp -s "$SRC" "$DEST"; then
-              echo "Bicep already installed at $DEST (same binary); skipping copy."
-            else
-              echo "Installing Bicep globally to $DEST"
-              sudo install -m 0755 "$SRC" "$DEST"
-            fi
-          fi
+#           if [ -z "${SRC}" ]; then
+#             echo "Bicep not found; downloading latest..."
+#             sudo curl -fsSL -o /usr/local/bin/bicep \
+#               https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
+#             sudo chmod +x /usr/local/bin/bicep
+#           else
+#             DEST="/usr/local/bin/bicep"
+#             # Only copy if dest missing or different content
+#             if [ -x "$DEST" ] && cmp -s "$SRC" "$DEST"; then
+#               echo "Bicep already installed at $DEST (same binary); skipping copy."
+#             else
+#               echo "Installing Bicep globally to $DEST"
+#               sudo install -m 0755 "$SRC" "$DEST"
+#             fi
+#           fi
 
-          /usr/local/bin/bicep --version
+#           /usr/local/bin/bicep --version
 
-          # Base utils
-          sudo apt-get update -y
-          sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
+#           # Base utils
+#           sudo apt-get update -y
+#           sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
 
-          # Databricks CLI — skip if present (avoid exit 1)
-          if command -v databricks >/dev/null 2>&1; then
-            echo "Databricks CLI present at $(command -v databricks); skipping reinstall."
-          else
-            curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-          fi
-          databricks --version || true
+#           # Databricks CLI — skip if present (avoid exit 1)
+#           if command -v databricks >/dev/null 2>&1; then
+#             echo "Databricks CLI present at $(command -v databricks); skipping reinstall."
+#           else
+#             curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+#           fi
+#           databricks --version || true
 
-          # VS Code via snap (best-effort)
-          if command -v snap >/dev/null 2>&1; then
-            sudo snap install --classic code || true
-          fi 
-    - task: AzureCLI@2
-      displayName: Install Bicep
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euxo pipefail
-          az bicep install
-          az bicep build --file ./iac-adb-360/main.bicep
+#           # VS Code via snap (best-effort)
+#           if command -v snap >/dev/null 2>&1; then
+#             sudo snap install --classic code || true
+#           fi 
+#     - task: AzureCLI@2
+#       displayName: Install Bicep
+#       inputs:
+#         azureSubscription: 'ado-sc'
+#         scriptType: bash
+#         scriptLocation: inlineScript
+#         inlineScript: |
+#           set -euxo pipefail
+#           az bicep install
+#           az bicep build --file ./iac-adb-360/main.bicep
 
 
 
