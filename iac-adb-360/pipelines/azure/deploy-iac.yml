@@ -221,23 +221,23 @@ stages:
 
           echo "✅ Validation succeeded."
 
-# (Optional) WHAT-IF for extra diagnostics when you’re tuning
-- task: AzureCLI@2
-  displayName: What-If (diagnostic)
-  continueOnError: true
-  inputs:
-    azureSubscription: 'ado-sc'
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      set -euo pipefail
-      OUTDIR="$(Pipeline.Workspace)/bicep_out"
-      TEMPLATE="$OUTDIR/main.json"
-      az deployment group what-if \
-        --resource-group "$(resourcegroup)" \
-        --template-file "$TEMPLATE" \
-        --parameters baseName="$(baseName)" env="$(env)" \
-        --result-format FullResourcePayloads
+    # (Optional) WHAT-IF for extra diagnostics when you’re tuning
+    - task: AzureCLI@2
+      displayName: What-If (diagnostic)
+      continueOnError: true
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          OUTDIR="$(Pipeline.Workspace)/bicep_out"
+          TEMPLATE="$OUTDIR/main.json"
+          az deployment group what-if \
+            --resource-group "$(resourcegroup)" \
+            --template-file "$TEMPLATE" \
+            --parameters baseName="$(baseName)" env="$(env)" \
+            --result-format FullResourcePayloads
 
 
 
