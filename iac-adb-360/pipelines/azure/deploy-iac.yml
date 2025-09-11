@@ -40,11 +40,11 @@ stages:
         inlineScript: |
           set -euo pipefail
 
-          # 1) Try to install via Azure CLI (idempotent)
+          # Ensure bicep is available (try az, then download if needed)
           az bicep install || true
           az bicep version || true
 
-          # 2) Find the installed binary (paths vary per task)
+          # Locate bicep
           SRC=""
           for CAND in \
             "${AZURE_CONFIG_DIR:-$HOME/.azure}/bin/bicep" \
@@ -54,15 +54,20 @@ stages:
             if [ -n "${CAND}" ] && [ -x "${CAND}" ]; then SRC="${CAND}"; break; fi
           done
 
-          # 3) If not found, fetch latest directly
           if [ -z "${SRC}" ]; then
-            echo "Bicep not found after 'az bicep install' — downloading latest..."
+            echo "Bicep not found; downloading latest..."
             sudo curl -fsSL -o /usr/local/bin/bicep \
               https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
             sudo chmod +x /usr/local/bin/bicep
           else
-            echo "Found Bicep at: ${SRC} — installing globally"
-            sudo install -m 0755 "${SRC}" /usr/local/bin/bicep
+            DEST="/usr/local/bin/bicep"
+            # Only copy if dest missing or different content
+            if [ -x "$DEST" ] && cmp -s "$SRC" "$DEST"; then
+              echo "Bicep already installed at $DEST (same binary); skipping copy."
+            else
+              echo "Installing Bicep globally to $DEST"
+              sudo install -m 0755 "$SRC" "$DEST"
+            fi
           fi
 
           /usr/local/bin/bicep --version
