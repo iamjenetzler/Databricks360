@@ -113,8 +113,8 @@ stages:
         bicep build ./iac-adb-360/main.bicep
       displayName: checking bicep syntax ...
 
-# --- Validate against Azure (uses PowerShell to avoid az CLI bug) ---
-# --- Validate against Azure (PowerShell with fallback Activity Log) ---
+
+# --- Validate against Azure (CLI pinned to 2.72.0 via venv) ---
 - stage: validatebicep
   displayName: Validate Bicep against Azure
   dependsOn: checkbicep
@@ -122,43 +122,35 @@ stages:
   - job: ValidateBicepJob
     displayName: Validate Bicep Job
     steps:
-    - task: AzurePowerShell@5
-      displayName: Validate Bicep (Test-AzResourceGroupDeployment)
+    - task: Bash@3
+      displayName: Create venv and install Azure CLI 2.72.0
+      inputs:
+        targetType: inline
+        script: |
+          set -euo pipefail
+          # Create an isolated Python environment for az 2.72.0
+          python3 -m venv .az272
+          . ./.az272/bin/activate
+          pip install --upgrade pip
+          pip install "azure-cli==2.72.0"
+          az version
+
+    - task: AzureCLI@2
+      displayName: Validate Bicep (az 2.72.0)
       inputs:
         azureSubscription: 'ado-sc'
-        ScriptType: InlineScript
-        Inline: |
-          $ErrorActionPreference = 'Stop'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          . ./.az272/bin/activate
+          az deployment group validate \
+            --resource-group "$(resourcegroup)" \
+            --template-file ./iac-adb-360/main.bicep \
+            --parameters baseName="$(baseName)" env="$(env)" \
+            --only-show-errors
 
-          # Ensure required modules exist on this self-hosted agent
-          try {
-            if (-not (Get-Module -ListAvailable -Name Az.Accounts)) {
-              Install-PackageProvider -Name NuGet -Force | Out-Null
-              Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-              Install-Module Az.Accounts,Az.Resources -Scope CurrentUser -Force -AllowClobber
-            }
-            Import-Module Az.Accounts -Force
-            Import-Module Az.Resources -Force
-          } catch {
-            Write-Host "Module install/import failed: $($_.Exception.Message)"
-            throw
-          }
-
-          # Validate the Bicep/ARM (this surfaces the real error if validation fails)
-          try {
-            Test-AzResourceGroupDeployment `
-              -ResourceGroupName "$(resourcegroup)" `
-              -TemplateFile "./iac-adb-360/main.bicep" `
-              -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" } `
-              -Verbose
-          } catch {
-            Write-Host "Validation failed. Throwing to mark task failed..."
-            throw
-          }
-        azurePowerShellVersion: LatestVersion
-        pwsh: true
-
-    # If validation failed above, pull the actual server-side error from Activity Log
+    # Helpful: if validation fails, print server-side error from Activity Log
     - task: AzureCLI@2
       displayName: Dump RG Activity Log (last 2h, Validate failures)
       condition: failed()
@@ -169,6 +161,7 @@ stages:
         inlineScript: |
           set -euo pipefail
           echo "Fetching recent failed 'Validate' operations from Activity Log..."
+          . ./.az272/bin/activate
           az monitor activity-log list \
             --resource-group "$(resourcegroup)" \
             --status Failed \
