@@ -23,15 +23,14 @@ variables:
 pool:
   name: jensazureagentpool
   
-parameters:
-  azureServiceConnection: 'ado-sc'
-  location: 'westus'
-  rgCreate: 'rg-vmss'
-  vmssRg: 'vmssagents'
-  vmssName: 'vmssagentspool'
+# parameters:
+#   azureServiceConnection: 'ado-sc'
+#   location: 'westus'
+#   rgCreate: 'rg-vmss'
+#   vmssRg: 'vmssagents'
+#   vmssName: 'vmssagentspool'
 
 steps:
-
 - task: UpdateVM
   displayName: Bootstrap tools on agent VM
   inputs:
