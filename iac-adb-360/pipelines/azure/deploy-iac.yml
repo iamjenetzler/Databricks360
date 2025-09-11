@@ -114,6 +114,7 @@ stages:
       displayName: checking bicep syntax ...
 
 # --- Validate against Azure (uses PowerShell to avoid az CLI bug) ---
+# --- Validate against Azure (PowerShell with fallback Activity Log) ---
 - stage: validatebicep
   displayName: Validate Bicep against Azure
   dependsOn: checkbicep
@@ -127,12 +128,55 @@ stages:
         azureSubscription: 'ado-sc'
         ScriptType: InlineScript
         Inline: |
-          $ErrorActionPreference = "Stop"
-          Test-AzResourceGroupDeployment `
-            -ResourceGroupName "$(resourcegroup)" `
-            -TemplateFile "./iac-adb-360/main.bicep" `
-            -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" }
+          $ErrorActionPreference = 'Stop'
+
+          # Ensure required modules exist on this self-hosted agent
+          try {
+            if (-not (Get-Module -ListAvailable -Name Az.Accounts)) {
+              Install-PackageProvider -Name NuGet -Force | Out-Null
+              Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+              Install-Module Az.Accounts,Az.Resources -Scope CurrentUser -Force -AllowClobber
+            }
+            Import-Module Az.Accounts -Force
+            Import-Module Az.Resources -Force
+          } catch {
+            Write-Host "Module install/import failed: $($_.Exception.Message)"
+            throw
+          }
+
+          # Validate the Bicep/ARM (this surfaces the real error if validation fails)
+          try {
+            Test-AzResourceGroupDeployment `
+              -ResourceGroupName "$(resourcegroup)" `
+              -TemplateFile "./iac-adb-360/main.bicep" `
+              -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" } `
+              -Verbose
+          } catch {
+            Write-Host "Validation failed. Throwing to mark task failed..."
+            throw
+          }
         azurePowerShellVersion: LatestVersion
+        pwsh: true
+
+    # If validation failed above, pull the actual server-side error from Activity Log
+    - task: AzureCLI@2
+      displayName: Dump RG Activity Log (last 2h, Validate failures)
+      condition: failed()
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          echo "Fetching recent failed 'Validate' operations from Activity Log..."
+          az monitor activity-log list \
+            --resource-group "$(resourcegroup)" \
+            --status Failed \
+            --offset 2h \
+            --max-events 10 \
+            --query "[?contains(operationName.localizedValue, 'Validate')].[eventTimestamp,operationName.localizedValue,properties.statusCode,properties.statusMessage]" \
+            -o jsonc || true
+
 
 - stage: Deploy
   displayName: Deploy Stage
