@@ -37,8 +37,7 @@ steps:
     azureSubscription: ${{ parameters.azureServiceConnection }}
     resourceGroupName: ${{ parameters.vmssRg }}
     vmScaleSetName: ${{ parameters.vmssName }}
-    upgradePolicyMode: 'Automatic'
-    azureSubscription: ${{ parameters.azureServiceConnection }}
+    upgradePolicyMode: 'Automatic'   
     scriptType: bash
     scriptLocation: inlineScript
     inlineScript: |
