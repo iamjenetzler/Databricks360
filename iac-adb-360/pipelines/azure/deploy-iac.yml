@@ -32,35 +32,51 @@ stages:
     displayName: Update VMSS Job
     steps:
     - task: AzureCLI@2
-      inputs:  
+      displayName: Bootstrap tools on agent VM
+      inputs:
         azureSubscription: 'ado-sc'
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
           set -euxo pipefail
 
-          # Azure CLI (safe to re-run)
+          # Azure CLI repo (idempotent)
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-          # Bicep (install + make available to following steps)
+          # Install Bicep into this task's AZURE_CONFIG_DIR, then make it global
           az bicep install
-          echo "AZURE_CONFIG_DIR=${AZURE_CONFIG_DIR:-$HOME/.azure}"
-          echo "##vso[task.prependpath]${AZURE_CONFIG_DIR:-$HOME/.azure}/bin"
-          az bicep version
-          bicep --version || true
+          BICEP_SRC="${AZURE_CONFIG_DIR:-$HOME/.azure}/bin/bicep"
+          sudo install -m 0755 "$BICEP_SRC" /usr/local/bin/bicep
+          /usr/local/bin/bicep --version
 
-          # Base utils + unzip
+          # Base utils
           sudo apt-get update -y
           sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
 
-          # Databricks unified CLI
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+          # Databricks CLI — skip if present (avoid exit 1)
+          if command -v databricks >/dev/null 2>&1; then
+            echo "Databricks CLI present at $(command -v databricks); skipping reinstall."
+          else
+            curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+          fi
           databricks --version || true
 
-          # VS Code via snap (best effort on server images)
+          # VS Code via snap (best-effort)
           if command -v snap >/dev/null 2>&1; then
             sudo snap install --classic code || true
           fi
+    - task: AzureCLI@2
+      displayName: Install Bicep
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euxo pipefail
+          az bicep install
+          az bicep build --file ./iac-adb-360/main.bicep
+
+
 
 # --- Azure ops (use your service connection) ---
 - stage: AzureCLI2
