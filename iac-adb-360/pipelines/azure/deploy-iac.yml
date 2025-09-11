@@ -162,56 +162,83 @@ stages:
   - job: ValidateBicepJob
     displayName: Validate Bicep Job
     steps:
-    - task: AzureCLI@2
-    displayName: Ensure latest Azure CLI in job
-    inputs:
-      azureSubscription: 'ado-sc'
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -euo pipefail
-        # Fast in-place upgrade to newest CLI available for the image
-        az upgrade --yes || true
-        az version
+- task: AzureCLI@2
+  displayName: Ensure latest Azure CLI in job
+  inputs:
+    azureSubscription: 'ado-sc'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      # Fast in-place upgrade to newest CLI available for the image
+      az upgrade --yes || true
+      az version
 
-  # Build Bicep -> JSON (unchanged)
-  - task: AzureCLI@2
-    displayName: Build Bicep to JSON
-    inputs:
-      azureSubscription: 'ado-sc'
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -euo pipefail
-        OUTDIR="$(Pipeline.Workspace)/bicep_out"
-        mkdir -p "$OUTDIR"
-        az bicep install
-        az bicep build --file ./iac-adb-360/main.bicep --outdir "$OUTDIR"
-        ls -l "$OUTDIR"
+# Build Bicep -> JSON (unchanged)
+- task: AzureCLI@2
+  displayName: Build Bicep to JSON
+  inputs:
+    azureSubscription: 'ado-sc'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      OUTDIR="$(Pipeline.Workspace)/bicep_out"
+      mkdir -p "$OUTDIR"
+      az bicep install
+      az bicep build --file ./iac-adb-360/main.bicep --outdir "$OUTDIR"
+      ls -l "$OUTDIR"
 
-  # VALIDATE — print full JSON so the real reason is visible
-  - task: AzureCLI@2
-    displayName: Validate ARM template (show errors)
-    inputs:
-      azureSubscription: 'ado-sc'
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -euo pipefail
-        OUTDIR="$(Pipeline.Workspace)/bicep_out"
-        TEMPLATE="$OUTDIR/main.json"
+# VALIDATE — print full JSON so the real reason is visible
+- task: AzureCLI@2
+  displayName: Validate ARM template (show errors)
+  inputs:
+    azureSubscription: 'ado-sc'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      OUTDIR="$(Pipeline.Workspace)/bicep_out"
+      TEMPLATE="$OUTDIR/main.json"
 
-        echo "🔎 Running validation…"
-        # IMPORTANT: do NOT use -o none or --only-show-errors here
-        if ! az deployment group validate \
-              --resource-group "$(resourcegroup)" \
-              --template-file "$TEMPLATE" \
-              --parameters baseName="$(baseName)" env="$(env)" \
-              --validation-level Full \
-              --output jsonc ; then
-          echo "❌ Validation failed. Re-running with --verbose for details…"
-          az deployment group validate \
-              --resource-group "$(resourcegroup
+      echo "🔎 Running validation…"
+      # IMPORTANT: do NOT use -o none or --only-show-errors here
+      if ! az deployment group validate \
+            --resource-group "$(resourcegroup)" \
+            --template-file "$TEMPLATE" \
+            --parameters baseName="$(baseName)" env="$(env)" \
+            --validation-level Full \
+            --output jsonc ; then
+        echo "❌ Validation failed. Re-running with --verbose for details…"
+        az deployment group validate \
+            --resource-group "$(resourcegroup)" \
+            --template-file "$TEMPLATE" \
+            --parameters baseName="$(baseName)" env="$(env)" \
+            --validation-level Full \
+            --verbose
+        exit 1
+      fi
+
+      echo "✅ Validation succeeded."
+
+# (Optional) WHAT-IF for extra diagnostics when you’re tuning
+- task: AzureCLI@2
+  displayName: What-If (diagnostic)
+  continueOnError: true
+  inputs:
+    azureSubscription: 'ado-sc'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      OUTDIR="$(Pipeline.Workspace)/bicep_out"
+      TEMPLATE="$OUTDIR/main.json"
+      az deployment group what-if \
+        --resource-group "$(resourcegroup)" \
+        --template-file "$TEMPLATE" \
+        --parameters baseName="$(baseName)" env="$(env)" \
+        --result-format FullResourcePayloads
+
 
 
 
