@@ -23,12 +23,12 @@ variables:
 pool:
   name: jensazureagentpool
   
-# parameters:
-#   azureServiceConnection: 'ado-sc'
-#   location: 'westus'
-#   rgCreate: 'rg-vmss'
-#   vmssRg: 'vmssagents'
-#   vmssName: 'vmssagentspool'
+parameters:
+  azureServiceConnection: 'ado-sc'
+  location: 'westus'
+  rgCreate: 'rg-vmss'
+  vmssRg: 'vmssagents'
+  vmssName: 'vmssagentspool'
 
 stages:
 - stage: UpdateVM
@@ -78,9 +78,6 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          set -euxo pipefail
-          az group create -n '${{ parameters.rgCreate }}' -l '${{ parameters.location }}' -o none
-
           # Add a public IP configuration to the NIC
           az vmss update \
             -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' \
