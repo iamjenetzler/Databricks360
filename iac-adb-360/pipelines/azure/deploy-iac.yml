@@ -162,7 +162,7 @@ stages:
   - job: ValidateBicepJob
     displayName: Validate Bicep Job
     steps:
-    # 1) Compile Bicep -> JSON (explicit step)
+    # 1) Build Bicep -> JSON
     - task: AzureCLI@2
       displayName: Build Bicep to JSON
       inputs:
@@ -170,33 +170,48 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          set -euo pipefail
+          set -Eeuo pipefail
+          trap 'echo "❌ Failed on line $LINENO: $BASH_COMMAND"' ERR
+
+          # Show where we are and confirm the template exists
+          pwd
+          ls -l ./iac-adb-360 || true
+          test -f ./iac-adb-360/main.bicep
+
+          # Compile Bicep to JSON (separate step avoids the CLI streaming bug)
           OUTDIR="$(Pipeline.Workspace)/bicep_out"
           mkdir -p "$OUTDIR"
           az bicep install
           az bicep build --file ./iac-adb-360/main.bicep --outdir "$OUTDIR"
           ls -l "$OUTDIR"
 
-    # 2) Validate the compiled ARM template (quiet output)
+    # 2) Validate the compiled ARM template (quiet, deterministic)
     - task: AzureCLI@2
-      displayName: Validate ARM template
+      displayName: Validate ARM template (quiet)
       inputs:
         azureSubscription: 'ado-sc'
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          set -euo pipefail
+          set -Eeuo pipefail
+          trap 'echo "❌ Failed on line $LINENO: $BASH_COMMAND"' ERR
+
           OUTDIR="$(Pipeline.Workspace)/bicep_out"
           TEMPLATE="$OUTDIR/main.json"
 
-          # Use quiet output; rely on exit code for pass/fail
+          echo "Resource group: $(resourcegroup)"
+          echo "baseName: $(baseName) | env: $(env)"
+          test -f "$TEMPLATE"
+
+          # Keep output minimal to avoid the response-stream bug
           az deployment group validate \
-            --resource-group $(resourcegroup) \
+            --resource-group "$(resourcegroup)" \
             --template-file "$TEMPLATE" \
-            --parameters baseName=$(baseName) env=$(env) \
+            --parameters baseName="$(baseName)" env="$(env)" \
             -o none --only-show-errors
 
-          echo "Validation succeeded."
+          echo "✅ Validation succeeded."
+
 
 
 - stage: Deploy
