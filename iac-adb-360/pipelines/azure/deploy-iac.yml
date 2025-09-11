@@ -3,18 +3,17 @@ name: Deploy-IAC
 trigger:
   branches:
     include: [ dev ]
-# NOTE: your original `paths: exclude: ['*']` would prevent CI runs.
-# Remove it (as done here) unless you *intentionally* want no CI triggers.
 
 pr:
   branches:
     include: [ dev ]
 
+# ✅ VARIABLE TEMPLATES WITH CONDITIONS (correct list syntax)
 variables:
-  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dev') }}:
-    - template: ./configdev.yml
-  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
-    - template: ./configprd.yml
+- ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dev') }}:
+  - template: ./configdev.yml
+- ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+  - template: ./configprd.yml
 
 pool:
   name: jensazureagentpool
@@ -27,9 +26,7 @@ parameters:
   vmssName: 'vmssagentspool'
 
 stages:
-# --------------------------------------------
-# 1) BOOTSTRAP: install tools on agent VM + VMSS public IPs
-# --------------------------------------------
+# 1) Bootstrap stage
 - stage: bootstrap
   displayName: Bootstrap agent VM & VMSS
   jobs:
@@ -38,28 +35,16 @@ stages:
     steps:
     - bash: |
         set -euxo pipefail
-
-        # Azure CLI (safe to re-run)
         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-        # Bicep (install + make available to following steps in this job)
         az bicep install
         echo "##vso[task.prependpath]$HOME/.azure/bin"
         az bicep version
         bicep --version || true
-
-        # Base utils + unzip
         sudo apt-get update -y
         sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
-
-        # Databricks unified CLI
         curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
         databricks --version || true
-
-        # VS Code via snap (best-effort)
-        if command -v snap >/dev/null 2>&1; then
-          sudo snap install --classic code || true
-        fi
+        if command -v snap >/dev/null 2>&1; then sudo snap install --classic code || true; fi
       displayName: Bootstrap tools on agent VM
 
     - task: AzureCLI@2
@@ -71,21 +56,13 @@ stages:
         inlineScript: |
           set -euxo pipefail
           az group create -n '${{ parameters.rgCreate }}' -l '${{ parameters.location }}' -o none
-
-          # Add a public IP configuration to the NIC
           az vmss update \
             -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' \
             --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}'
-
-          # Apply change to existing instances
           az vmss update-instances -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' --instance-ids "*"
-
-          # List connection info (public IPs, ports, etc.)
           az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table
 
-# --------------------------------------------
-# 2) CHECK BICEP: syntax build
-# --------------------------------------------
+# 2) Check bicep
 - stage: checkbicep
   displayName: Check Bicep
   dependsOn: bootstrap
@@ -104,9 +81,7 @@ stages:
           az bicep install
           az bicep build --file ./iac-adb-360/main.bicep
 
-# --------------------------------------------
-# 3) VALIDATE: what-if/validate against RG
-# --------------------------------------------
+# 3) Validate
 - stage: validatebicep
   displayName: Validate Bicep against Azure
   dependsOn: checkbicep
@@ -127,9 +102,7 @@ stages:
             --template-file ./iac-adb-360/main.bicep \
             --parameters baseName=$(baseName) env=$(env)
 
-# --------------------------------------------
-# 4) DEPLOY
-# --------------------------------------------
+# 4) Deploy
 - stage: Deploy
   displayName: Deploy Stage
   dependsOn: validatebicep
