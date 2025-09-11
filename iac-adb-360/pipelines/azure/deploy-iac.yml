@@ -114,6 +114,8 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
+          az vmss show -g vmssagents -n vmssagentspool --query "virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration" -o json
+
           # Add a public IP configuration to the NIC
           az vmss update \
             -g 'vmssagents' -n 'vmssagentspool' \
@@ -123,7 +125,10 @@ stages:
           az vmss update-instances -g 'vmssagents' -n 'vmssagentspool' --instance-ids "*"
 
           # List connection info (public IPs, ports, etc.)
+          az vmss list-instance-public-ips -g vmssagents -n vmssagentspool -o table
           az vmss list-instance-connection-info -g 'vmssagents' -n 'vmssagentspool' -o table
+
+
 
 - stage: checkbicep
   displayName: check bicep
