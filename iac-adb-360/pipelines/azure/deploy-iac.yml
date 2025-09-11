@@ -189,67 +189,6 @@ stages:
           az bicep build --file ./iac-adb-360/main.bicep --outdir "$OUTDIR"
           ls -l "$OUTDIR"
 
-    - task: AzureCLI@2
-      displayName: Validate via ARM REST (show full error)
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-
-          OUTDIR="$(Pipeline.Workspace)/bicep_out"
-          TEMPLATE="$OUTDIR/main.json"
-          test -f "$TEMPLATE" || { echo "❌ Template not found at $TEMPLATE"; ls -l "$OUTDIR" || true; exit 1; }
-
-          export OUTDIR
-          export TEMPLATE
-          export BASENAME="$(baseName)"
-          export ENVIRONMENT="$(env)"
-          export SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
-          export RG_NAME="$(resourcegroup)"
-          DEPLOY_NAME="validate-$(date +%s)"
-
-          BODY_FILE="$OUTDIR/validate_ready.json"
-          python3 - <<'PY' > "$BODY_FILE"
-          import json, os
-          tmpl_path = os.environ["TEMPLATE"]
-          with open(tmpl_path, "r") as f:
-              template = json.load(f)
-          body = {
-            "properties": {
-              "mode": "Incremental",
-              "template": template,
-              "parameters": {
-                "baseName": {"value": os.environ["BASENAME"]},
-                "env":      {"value": os.environ["ENVIRONMENT"]}
-              }
-            }
-          }
-          print(json.dumps(body))
-          PY
-
-          echo "🔎 Calling ARM /validate…"
-          set +e
-          RESP=$(az rest \
-            --method post \
-            --uri "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourcegroups/$RG_NAME/providers/Microsoft.Resources/deployments/$DEPLOY_NAME/validate?api-version=2021-04-01" \
-            --headers Content-Type=application/json \
-            --body @"$BODY_FILE" \
-            --output json 2>&1)
-          RC=$?
-          set -e
-
-          echo "—— ARM validate response ——"
-          echo "$RESP"
-
-          if [ $RC -ne 0 ] || echo "$RESP" | grep -q '"status"[[:space:]]*:[[:space:]]*"Failed"'; then
-            echo "❌ Validation failed."
-            exit 1
-          fi
-          echo "✅ Validation succeeded."
-
-
     # (Optional) WHAT-IF for extra diagnostics when you’re tuning
     - task: AzureCLI@2
       displayName: What-If (diagnostic)
@@ -267,6 +206,22 @@ stages:
             --template-file "$TEMPLATE" \
             --parameters baseName="$(baseName)" env="$(env)" \
             --result-format FullResourcePayloads
+            
+    - task: validatebicep
+      displayName: Validate Bicep against Azure
+      jobs:
+        - job: ValidateBicepJob
+          displayName: Validate Bicep Job
+          steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: 'ado-sc'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+
+
+
 
 
 
