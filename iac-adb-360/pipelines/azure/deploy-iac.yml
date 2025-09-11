@@ -2,27 +2,23 @@ name: Deploy-IAC
 
 trigger:
   branches:
-    include:
-      - dev
-  paths:
-    exclude:
-      - '*'
+    include: [ dev ]
+# NOTE: your original `paths: exclude: ['*']` would prevent CI runs.
+# Remove it (as done here) unless you *intentionally* want no CI triggers.
 
 pr:
   branches:
-    include:
-      - dev
+    include: [ dev ]
 
 variables:
-  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dev') }}: 
+  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dev') }}:
     - template: ./configdev.yml
-  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}: 
+  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
     - template: ./configprd.yml
-
 
 pool:
   name: jensazureagentpool
-  
+
 parameters:
   azureServiceConnection: 'ado-sc'
   location: 'westus'
@@ -30,97 +26,131 @@ parameters:
   vmssRg: 'vmssagents'
   vmssName: 'vmssagentspool'
 
-steps:
-- bash: |
-    set -euxo pipefail
-
-    # Azure CLI (safe to re-run)
-    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-    # Bicep (install + make available to following steps)
-    az bicep install
-    echo "##vso[task.prependpath]$HOME/.azure/bin"
-    az bicep version
-    bicep --version || true
-
-    # Base utils + unzip
-    sudo apt-get update -y
-    sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
-
-    # Databricks unified CLI
-    curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-    databricks --version || true
-
-    # VS Code via snap (best effort on server images)
-    if command -v snap >/dev/null 2>&1; then
-      sudo snap install --classic code || true
-    fi
-  displayName: Bootstrap tools on agent VM
-
-# --- Azure ops (use your service connection) ---
-- task: AzureCLI@2
-  displayName: Ensure RG + enable per-instance Public IPs on VMSS
-  inputs:
-    azureSubscription: ${{ parameters.azureServiceConnection }}
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      set -euxo pipefail
-      az group create -n '${{ parameters.rgCreate }}' -l '${{ parameters.location }}' -o none
-
-      # Add a public IP configuration to the NIC
-      az vmss update \
-        -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' \
-        --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}'
-
-      # Apply change to existing instances
-      az vmss update-instances -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' --instance-ids "*"
-
-      # List connection info (public IPs, ports, etc.)
-      az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table
-
-      
 stages:
-  - stage: checkbicep
-    displayName: check bicep
-    jobs:
-      - job: checkbicepjob
-        displayName: check bicep syntax
-        steps:
-          - script: |
-              echo "Checking bicep syntax..."
-              bicep build ./iac-adb-360/main.bicep
-            displayName: checking bicep syntax ...
+# --------------------------------------------
+# 1) BOOTSTRAP: install tools on agent VM + VMSS public IPs
+# --------------------------------------------
+- stage: bootstrap
+  displayName: Bootstrap agent VM & VMSS
+  jobs:
+  - job: bootstrap_job
+    displayName: Install tools on agent VM
+    steps:
+    - bash: |
+        set -euxo pipefail
 
-  - stage: validatebicep
-    displayName: Validate Bicep against Azure
-    jobs:
-      - job: ValidateBicepJob
-        displayName: Validate Bicep Job
-        steps:
-        - task: AzureCLI@2
-          inputs:
-            azureSubscription: 'ado-sc'
-            scriptType: 'bash'
-            scriptLocation: 'inlineScript'
-            inlineScript: 'az deployment group validate --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+        # Azure CLI (safe to re-run)
+        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
+        # Bicep (install + make available to following steps in this job)
+        az bicep install
+        echo "##vso[task.prependpath]$HOME/.azure/bin"
+        az bicep version
+        bicep --version || true
 
-  - stage: Deploy
-    displayName: Deploy Stage
-    jobs:
-      - deployment: DeployJob
-        displayName: Deploy to dev environment
-        environment: dev
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
-                - task: AzureCLI@2
-                  inputs:
-                    azureSubscription: 'ado-sc'
-                    scriptType: 'bash'
-                    scriptLocation: 'inlineScript'
-                    inlineScript: 'az deployment group create --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
-    
+        # Base utils + unzip
+        sudo apt-get update -y
+        sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
+
+        # Databricks unified CLI
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+        databricks --version || true
+
+        # VS Code via snap (best-effort)
+        if command -v snap >/dev/null 2>&1; then
+          sudo snap install --classic code || true
+        fi
+      displayName: Bootstrap tools on agent VM
+
+    - task: AzureCLI@2
+      displayName: Ensure RG + enable per-instance Public IPs on VMSS
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euxo pipefail
+          az group create -n '${{ parameters.rgCreate }}' -l '${{ parameters.location }}' -o none
+
+          # Add a public IP configuration to the NIC
+          az vmss update \
+            -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' \
+            --set virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].ipConfigurations[0].publicIPAddressConfiguration='{"name":"pubip","idleTimeoutInMinutes":10}'
+
+          # Apply change to existing instances
+          az vmss update-instances -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' --instance-ids "*"
+
+          # List connection info (public IPs, ports, etc.)
+          az vmss list-instance-connection-info -g '${{ parameters.vmssRg }}' -n '${{ parameters.vmssName }}' -o table
+
+# --------------------------------------------
+# 2) CHECK BICEP: syntax build
+# --------------------------------------------
+- stage: checkbicep
+  displayName: Check Bicep
+  dependsOn: bootstrap
+  jobs:
+  - job: checkbicepjob
+    displayName: Check Bicep syntax
+    steps:
+    - task: AzureCLI@2
+      displayName: Build Bicep (syntax check)
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euxo pipefail
+          az bicep install
+          az bicep build --file ./iac-adb-360/main.bicep
+
+# --------------------------------------------
+# 3) VALIDATE: what-if/validate against RG
+# --------------------------------------------
+- stage: validatebicep
+  displayName: Validate Bicep against Azure
+  dependsOn: checkbicep
+  jobs:
+  - job: ValidateBicepJob
+    displayName: Validate Bicep Job
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euxo pipefail
+          az bicep install
+          az deployment group validate \
+            --resource-group $(resourcegroup) \
+            --template-file ./iac-adb-360/main.bicep \
+            --parameters baseName=$(baseName) env=$(env)
+
+# --------------------------------------------
+# 4) DEPLOY
+# --------------------------------------------
+- stage: Deploy
+  displayName: Deploy Stage
+  dependsOn: validatebicep
+  jobs:
+  - deployment: DeployJob
+    displayName: Deploy to dev environment
+    environment: dev
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: ${{ parameters.azureServiceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euxo pipefail
+                az bicep install
+                az deployment group create \
+                  --resource-group $(resourcegroup) \
+                  --template-file ./iac-adb-360/main.bicep \
+                  --parameters baseName=$(baseName) env=$(env)
