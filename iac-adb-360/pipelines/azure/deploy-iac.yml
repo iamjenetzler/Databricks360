@@ -31,7 +31,29 @@ stages:
   jobs:
   - job: UpdateVMJob
     displayName: Update VMSS Job
+    pool:
+      name: MySelfHostedPool   # <-- your pool
     steps:
+    # 1) Ensure Azure CLI exists *before* AzureCLI@2 logs in
+    - task: Bash@3
+      displayName: Install Azure CLI (if missing)
+      inputs:
+        targetType: 'inline'
+        script: |
+          set -euo pipefail
+          if command -v az >/dev/null 2>&1; then
+            echo "Azure CLI already present: $(command -v az)"
+            az version
+            exit 0
+          fi
+
+          # Ubuntu/Debian: official one-liner
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+          # Verify
+          az version
+
+    # 2) Now AzureCLI@2 can authenticate and run your bootstrap
     - task: AzureCLI@2
       displayName: Bootstrap tools on agent VM
       inputs:
@@ -41,7 +63,7 @@ stages:
         inlineScript: |
           set -euo pipefail
 
-          # Ensure bicep is available (try az, then download if needed)
+          # Ensure bicep is available (via az if possible)
           az bicep install || true
           az bicep version || true
 
@@ -50,8 +72,7 @@ stages:
           for CAND in \
             "${AZURE_CONFIG_DIR:-$HOME/.azure}/bin/bicep" \
             "$HOME/.azure/bin/bicep" \
-            "$(command -v bicep || true)"
-          do
+            "$(command -v bicep || true)"; do
             if [ -n "${CAND}" ] && [ -x "${CAND}" ]; then SRC="${CAND}"; break; fi
           done
 
@@ -61,33 +82,6 @@ stages:
               https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
             sudo chmod +x /usr/local/bin/bicep
           else
-            DEST="/usr/local/bin/bicep"
-            if [ -x "$DEST" ] && cmp -s "$SRC" "$DEST"; then
-              echo "Bicep already installed at $DEST (same binary); skipping copy."
-            else
-              echo "Installing Bicep globally to $DEST"
-              sudo install -m 0755 "$SRC" "$DEST"
-            fi
-          fi
-
-          /usr/local/bin/bicep --version
-
-          # Base utils
-          sudo apt-get update -y
-          sudo apt-get install -y unzip ca-certificates curl apt-transport-https lsb-release gnupg
-
-          # Databricks CLI — skip if present (avoid exit 1)
-          if command -v databricks >/dev/null 2>&1; then
-            echo "Databricks CLI present at $(command -v databricks); skipping reinstall."
-          else
-            curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-          fi
-          databricks --version || true
-
-          # VS Code via snap (best-effort)
-          if command -v snap >/dev/null 2>&1; then
-            sudo snap install --classic code || true
-          fi 
 
     - task: AzureCLI@2
       displayName: Install & sanity-check Bicep
