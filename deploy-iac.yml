@@ -1,0 +1,222 @@
+name: Deploy-IAC
+
+trigger:
+  branches:
+    include:
+      - dev
+  paths:
+    exclude:
+      - '*'
+
+pr:
+  branches:
+    include:
+      - dev
+
+variables:
+  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dev') }}: 
+    - template: ./configdev.yml
+  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}: 
+    - template: ./configprd.yml
+
+
+pool:
+  name: jensazureagentpool
+  
+
+stages:
+# --- Bootstrap tools on the self-hosted agent VM ---
+- stage: UpdateVM
+  displayName: Bootstrap tools on agent VM
+  jobs:
+  - job: UpdateVMJob
+    displayName: Update VMSS Job
+    pool:
+      name: MySelfHostedPool   # <-- your pool
+    steps:
+    # 1) Ensure Azure CLI exists *before* AzureCLI@2 logs in
+    - task: Bash@3
+      displayName: Install Azure CLI (if missing)
+      inputs:
+        targetType: 'inline'
+        script: |
+          set -euo pipefail
+          if command -v az >/dev/null 2>&1; then
+            echo "Azure CLI already present: $(command -v az)"
+            az version
+            exit 0
+          fi
+
+          # Ubuntu/Debian: official one-liner
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+          # Verify
+          az version
+
+    # 2) Now AzureCLI@2 can authenticate and run your bootstrap
+    - task: AzureCLI@2
+      displayName: Bootstrap tools on agent VM
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+
+          # Ensure bicep is available (via az if possible)
+          az bicep install || true
+          az bicep version || true
+
+          # Locate bicep binary
+          SRC=""
+          for CAND in \
+            "${AZURE_CONFIG_DIR:-$HOME/.azure}/bin/bicep" \
+            "$HOME/.azure/bin/bicep" \
+            "$(command -v bicep || true)"; do
+            if [ -n "${CAND}" ] && [ -x "${CAND}" ]; then SRC="${CAND}"; break; fi
+          done
+
+          if [ -z "${SRC}" ]; then
+            echo "Bicep not found; downloading latest..."
+            sudo curl -fsSL -o /usr/local/bin/bicep \
+              https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
+            sudo chmod +x /usr/local/bin/bicep
+          else
+
+    - task: AzureCLI@2
+      displayName: Install & sanity-check Bicep
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euxo pipefail
+          az bicep install
+          az bicep build --file ./iac-adb-360/main.bicep
+
+# --- Quick syntax check (local build) ---
+- stage: checkbicep
+  displayName: check bicep
+  dependsOn: UpdateVM
+  jobs:
+  - job: checkbicepjob
+    displayName: check bicep syntax
+    steps:
+    - script: |
+        echo "Checking bicep syntax..."
+        bicep build ./iac-adb-360/main.bicep
+      displayName: checking bicep syntax ...
+
+
+# --- Validate against Azure (CLI pinned to 2.72.0 via venv) ---
+- stage: validatebicep
+  displayName: Validate Bicep against Azure
+  dependsOn: checkbicep
+  jobs:
+  - job: ValidateBicepJob
+    displayName: Validate Bicep Job
+    steps:
+    - task: Bash@3
+      displayName: Ensure Python venv tooling is present
+      inputs:
+        targetType: inline
+        script: |
+          set -euo pipefail
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update -y
+            # venv + pip + common build deps
+            sudo apt-get install -y python3-venv python3-pip build-essential libffi-dev libssl-dev
+          elif command -v dnf >/dev/null 2>&1; then
+            sudo dnf install -y python3 python3-pip python3-virtualenv gcc gcc-c++ make libffi-devel openssl-devel
+          elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y python3 python3-pip python3-virtualenv gcc gcc-c++ make libffi-devel openssl-devel
+          else
+            echo "Unsupported distro: need python venv tooling installed." >&2
+            exit 1
+          fi
+          python3 -V
+          python3 -m pip --version || true
+
+    - task: Bash@3
+      displayName: Create venv and install Azure CLI 2.72.0
+      inputs:
+        targetType: inline
+        script: |
+          set -euo pipefail
+          python3 -m venv .az272
+          . ./.az272/bin/activate
+          pip install --upgrade pip
+          pip install "azure-cli==2.72.0"
+          az version
+
+    - task: AzureCLI@2
+      displayName: Validate Bicep (az 2.72.0)
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          . ./.az272/bin/activate
+          az deployment group validate \
+            --resource-group "$(resourcegroup)" \
+            --template-file ./iac-adb-360/main.bicep \
+            --parameters baseName="$(baseName)" env="$(env)" \
+            --only-show-errors
+
+    - task: AzureCLI@2
+      displayName: Dump RG Activity Log (last 2h, Validate failures)
+      condition: failed()
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          . ./.az272/bin/activate
+          az monitor activity-log list \
+            --resource-group "$(resourcegroup)" \
+            --status Failed --offset 2h --max-events 10 \
+            --query "[?contains(operationName.localizedValue,'Validate')].[eventTimestamp,operationName.localizedValue,properties.statusCode,properties.statusMessage]" \
+            -o jsonc || true
+
+
+
+    # Helpful: if validation fails, print server-side error from Activity Log
+    - task: AzureCLI@2
+      displayName: Dump RG Activity Log (last 2h, Validate failures)
+      condition: failed()
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          echo "Fetching recent failed 'Validate' operations from Activity Log..."
+          . ./.az272/bin/activate
+          az monitor activity-log list \
+            --resource-group "$(resourcegroup)" \
+            --status Failed \
+            --offset 2h \
+            --max-events 10 \
+            --query "[?contains(operationName.localizedValue, 'Validate')].[eventTimestamp,operationName.localizedValue,properties.statusCode,properties.statusMessage]" \
+            -o jsonc || true
+
+
+- stage: Deploy
+  displayName: Deploy Stage
+  jobs:
+    - deployment: DeployJob
+      displayName: Deploy to dev environment
+      environment: dev
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+              - checkout: self
+              - task: AzureCLI@2
+                inputs:
+                  azureSubscription: 'ado-sc'
+                  scriptType: 'bash'
+                  scriptLocation: 'inlineScript'
+                  inlineScript: 'az deployment group create --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
