@@ -21,11 +21,7 @@ resource adbwsdiags 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' =
   scope: adbws
   properties: {
     workspaceId: lawid
-    logs: [
-      {
-        category: 'dbfs'
-        enabled: true
-      }
+    logs: [  
       {
         category: 'clusters'
         enabled: true
