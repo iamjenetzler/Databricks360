@@ -146,14 +146,13 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          set -euo pipefail
-          az deployment group what-if \
+          az deployment group validate \
           --resource-group "$(resourcegroup)" \
-          --name "precheck-$(Build.BuildId)" \
+          --name "validate-$(Build.BuildId)" \
           --template-file ./iac-adb-360/main.bicep \
           --parameters baseName="$(baseName)" env="$(env)" \
-          --result-format FullResourcePayloads \
           --only-show-errors
+
 
 
     - task: AzureCLI@2
