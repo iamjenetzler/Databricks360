@@ -232,36 +232,34 @@ stages:
                     set -euo pipefail
 
                     SUB_ID="$(az account show --query id -o tsv)"
-                    RG="$(resourcegroup)"
+                    RG="rg-wus2-adb360-44281721013-dev"   # <-- corrected RG
                     URI="https://management.azure.com/subscriptions/${SUB_ID}/resourcegroups/${RG}/providers/Microsoft.Resources/deployments/rbac-probe/validate?api-version=2021-04-01"
 
                     # Minimal empty template
-                    cat > /tmp/emptyTemplate.json <<'JSON'
+                    cat > /tmp/emptyTemplate.json <<'TJSON'
                     {
                       "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
                       "contentVersion": "1.0.0.0",
                       "parameters": {},
                       "resources": []
                     }
-                    JSON
+                    TJSON
+
+                    # Wrap as deployment validate payload
+                    jq -n --argfile tmpl /tmp/emptyTemplate.json '{
+                      "properties": {
+                        "mode": "Incremental",
+                        "template": $tmpl,
+                        "parameters": {}
+                      }
+                    }' > /tmp/validateBody.json
 
                     echo "POST ${URI}"
-                    set +e
                     az rest --method post --uri "$URI" \
                       --headers "Content-Type=application/json" \
-                      --body @"@/tmp/emptyTemplate.json" -o jsonc
-                    RC=$?
-                    set -e
+                      --body @/tmp/validateBody.json -o jsonc
 
-                    if [ $RC -eq 0 ]; then
-                      echo "RESULT: Validate via ARM REST succeeded — principal has deployment.validate rights."
-                    else
-                      echo "RESULT: Validate via ARM REST failed (this is a *real* service response, not a CLI bug)."
-                      exit $RC
-                    fi
-
-
-
+                    echo "RESULT: Validate via ARM REST succeeded — principal has deployment.validate rights."
 
 
               # 2) Deploy with AzurePowerShell@5 (auto-auth with ado-sc)
