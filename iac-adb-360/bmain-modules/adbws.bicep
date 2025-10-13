@@ -23,35 +23,11 @@ resource adbwsdiags 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' =
     workspaceId: lawid
     logs: [  
       {
-        category: 'clusters'
+        category: 'Audit'
         enabled: true
       }
       {
-        category: 'accounts'
-        enabled: true
-      }
-      {
-        category: 'jobs'
-        enabled: true
-      }
-      {
-        category: 'notebook'
-        enabled: true
-      }
-      {
-        category:'workspace'
-        enabled: true
-      }
-      {
-        category: 'sqlAnalytics'
-        enabled: true
-      }
-      {
-        category: 'repos'
-        enabled: true
-      }
-      {
-        category: 'unitycatalog'
+        category: 'AllMetrics'
         enabled: true
       }
     ]
