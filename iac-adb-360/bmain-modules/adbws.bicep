@@ -10,6 +10,7 @@ param lawid string
 resource adbws 'Microsoft.Databricks/workspaces@2023-02-01' = {
   name: 'adbws-${locationshortname}${baseName}${env}'
   location: location
+  sku: { name: 'Standard' }  
   properties: {
     managedResourceGroupId: adbmngresourceid
   }
