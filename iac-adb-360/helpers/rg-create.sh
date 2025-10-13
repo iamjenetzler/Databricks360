@@ -1,14 +1,13 @@
-#!/bin/bash
-
-solutionname='adb360'
+# !/bin/bash
+solutionname='adb360-4428172'
 location='westus2'
-subscriptionid='<subscriptionid>'
+subscriptionid='d139f965-f627-47f8-8b6f-e9d4857f179c'
 serviceprincipalname='devops-sc'
 adbinteractprincipalname='adb360-sp'
 locationshortname='wus2'
 
-month=$(date -d "$D" '+%m')
-day=$(date -d "$D" '+%d')
+month=$(date '+%m')
+day=$(date '+%d')
 
 dailysolutionname="$solutionname$month$day"
 echo "solution name: $dailysolutionname"
