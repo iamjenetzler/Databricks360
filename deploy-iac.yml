@@ -147,18 +147,21 @@ stages:
           az version
 
     - task: AzureCLI@2
-      displayName: Validate Bicep (latest az)
+      displayName: What-If Bicep (az 2.72.0, with debug)
       inputs:
         azureSubscription: 'ado-sc'
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
           set -euo pipefail
-          az deployment group validate \
+          . ./.az272/bin/activate
+          az deployment group what-if \
             --resource-group "$(resourcegroup)" \
-            --name "validate-$(Build.BuildId)" \
+            --name "precheck-$(Build.BuildId)" \
             --template-file ./iac-adb-360/main.bicep \
             --parameters baseName="$(baseName)" env="$(env)" \
+            --result-format FullResourcePayloads \
+            --debug \
             --only-show-errors
 
     - task: AzureCLI@2
