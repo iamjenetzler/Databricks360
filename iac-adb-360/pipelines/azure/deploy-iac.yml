@@ -231,41 +231,26 @@ stages:
                   inlineScript: |
                     set -euo pipefail
 
-                    SCOPE="/subscriptions/$(subscription)/resourceGroups/$(resourcegroup)"
+                    # resolve subscription id from current az context
+                    SUB_ID="$(az account show --query id -o tsv)"
+                    RG="$(resourcegroup)"
+                    SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RG}"
+
                     echo "Scope: $SCOPE"
                     echo "== az account show =="
                     az account show -o jsonc
 
-                    APP_ID="$(az account show --query user.name -o tsv)"   # for SP this is the AppId (clientId)
+                    # For service principals, user.name is the AppId (clientId)
+                    APP_ID="$(az account show --query user.name -o tsv)"
                     TYPE="$(az account show --query user.type -o tsv)"
                     echo "Type: $TYPE"
                     echo "AppId/UPN: $APP_ID"
 
-                    # Resolve to SP ObjectId (Enterprise app)
+                    # Resolve to Service Principal ObjectId (Enterprise App)
                     OID="$(az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null || true)"
                     if [ -z "${OID:-}" ]; then
-                      # Managed identity or fallback
-                      OID="$(az ad signed-in-user show --query id -o tsv 2>/dev/null || true)"
-                    fi
-                    echo "Resolved ObjectId: ${OID:-<empty>}"
+                    # Managed Identity fal
 
-                    if [ -z "${OID:-}" ]; then
-                      echo "ERROR: Could not resolve the principal ObjectId for this session."
-                      exit 1
-                    fi
-
-                    echo "== Current role assignments (this principal at this scope) =="
-                    az role assignment list --assignee-object-id "$OID" --scope "$SCOPE" -o table || true
-
-                    echo "== Effective (include inherited) =="
-                    az role assignment list --assignee-object-id "$OID" --scope "$SCOPE" --include-inherited -o table || true
-
-                    echo "== SP status =="
-                    az ad sp show --id "$APP_ID" --query "{objectId:id,appId:appId,displayName:displayName,accountEnabled:accountEnabled}" -o jsonc
-
-                    echo "== Check for deny assignments / policy denies at scope =="
-                    az resource list --namespace Microsoft.Authorization --resource-type denyAssignments --scope "$SCOPE" -o table || true
-                    az policy assignment list --scope "$SCOPE" -o table || true
 
 
               # 2) Deploy with AzurePowerShell@5 (auto-auth with ado-sc)
