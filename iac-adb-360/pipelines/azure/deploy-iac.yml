@@ -222,7 +222,7 @@ stages:
                       az bicep build --file ./iac-adb-360/main.bicep --stdout > ./iac-adb-360/main.json
                     fi
 
-             - task: AzureCLI@2
+              - task: AzureCLI@2
                 displayName: Permission probe via ARM REST (validate)
                 inputs:
                   azureSubscription: 'ado-sc'
