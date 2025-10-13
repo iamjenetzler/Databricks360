@@ -223,49 +223,49 @@ stages:
                     fi
 
               - task: AzureCLI@2
-              displayName: RBAC preflight (who am I & do I have rights?)
-              inputs:
-                azureSubscription: 'ado-sc'
-                scriptType: bash
-                scriptLocation: inlineScript
-                inlineScript: |
-                  set -euo pipefail
+                displayName: RBAC preflight (who am I & do I have rights?)
+                inputs:
+                  azureSubscription: 'ado-sc'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -euo pipefail
 
-                  SCOPE="/subscriptions/$(subscription)/resourceGroups/$(resourcegroup)"
-                  echo "Scope: $SCOPE"
-                  echo "== az account show =="
-                  az account show -o jsonc
+                    SCOPE="/subscriptions/$(subscription)/resourceGroups/$(resourcegroup)"
+                    echo "Scope: $SCOPE"
+                    echo "== az account show =="
+                    az account show -o jsonc
 
-                  APP_ID="$(az account show --query user.name -o tsv)"   # for SP this is the AppId (clientId)
-                  TYPE="$(az account show --query user.type -o tsv)"
-                  echo "Type: $TYPE"
-                  echo "AppId/UPN: $APP_ID"
+                    APP_ID="$(az account show --query user.name -o tsv)"   # for SP this is the AppId (clientId)
+                    TYPE="$(az account show --query user.type -o tsv)"
+                    echo "Type: $TYPE"
+                    echo "AppId/UPN: $APP_ID"
 
-                  # Resolve to SP ObjectId (Enterprise app)
-                  OID="$(az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null || true)"
-                  if [ -z "${OID:-}" ]; then
-                    # Managed identity or fallback
-                    OID="$(az ad signed-in-user show --query id -o tsv 2>/dev/null || true)"
-                  fi
-                  echo "Resolved ObjectId: ${OID:-<empty>}"
+                    # Resolve to SP ObjectId (Enterprise app)
+                    OID="$(az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null || true)"
+                    if [ -z "${OID:-}" ]; then
+                      # Managed identity or fallback
+                      OID="$(az ad signed-in-user show --query id -o tsv 2>/dev/null || true)"
+                    fi
+                    echo "Resolved ObjectId: ${OID:-<empty>}"
 
-                  if [ -z "${OID:-}" ]; then
-                    echo "ERROR: Could not resolve the principal ObjectId for this session."
-                    exit 1
-                  fi
+                    if [ -z "${OID:-}" ]; then
+                      echo "ERROR: Could not resolve the principal ObjectId for this session."
+                      exit 1
+                    fi
 
-                  echo "== Current role assignments (this principal at this scope) =="
-                  az role assignment list --assignee-object-id "$OID" --scope "$SCOPE" -o table || true
+                    echo "== Current role assignments (this principal at this scope) =="
+                    az role assignment list --assignee-object-id "$OID" --scope "$SCOPE" -o table || true
 
-                  echo "== Effective (include inherited) =="
-                  az role assignment list --assignee-object-id "$OID" --scope "$SCOPE" --include-inherited -o table || true
+                    echo "== Effective (include inherited) =="
+                    az role assignment list --assignee-object-id "$OID" --scope "$SCOPE" --include-inherited -o table || true
 
-                  echo "== SP status =="
-                  az ad sp show --id "$APP_ID" --query "{objectId:id,appId:appId,displayName:displayName,accountEnabled:accountEnabled}" -o jsonc
+                    echo "== SP status =="
+                    az ad sp show --id "$APP_ID" --query "{objectId:id,appId:appId,displayName:displayName,accountEnabled:accountEnabled}" -o jsonc
 
-                  echo "== Check for deny assignments / policy denies at scope =="
-                  az resource list --namespace Microsoft.Authorization --resource-type denyAssignments --scope "$SCOPE" -o table || true
-                  az policy assignment list --scope "$SCOPE" -o table || true
+                    echo "== Check for deny assignments / policy denies at scope =="
+                    az resource list --namespace Microsoft.Authorization --resource-type denyAssignments --scope "$SCOPE" -o table || true
+                    az policy assignment list --scope "$SCOPE" -o table || true
 
 
               # 2) Deploy with AzurePowerShell@5 (auto-auth with ado-sc)
