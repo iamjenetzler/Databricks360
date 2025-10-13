@@ -222,8 +222,8 @@ stages:
                       az bicep build --file ./iac-adb-360/main.bicep --stdout > ./iac-adb-360/main.json
                     fi
 
-              - task: AzureCLI@2
-                displayName: Permission probe (can we validate?)
+             - task: AzureCLI@2
+                displayName: Permission probe via ARM REST (validate)
                 inputs:
                   azureSubscription: 'ado-sc'
                   scriptType: bash
@@ -233,44 +233,33 @@ stages:
 
                     SUB_ID="$(az account show --query id -o tsv)"
                     RG="$(resourcegroup)"
-                    SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RG}"
-                    echo "Scope: ${SCOPE}"
+                    URI="https://management.azure.com/subscriptions/${SUB_ID}/resourcegroups/${RG}/providers/Microsoft.Resources/deployments/rbac-probe/validate?api-version=2021-04-01"
 
-                    # Resolve the exact ObjectId Azure is using
-                    APP_ID="$(az account show --query user.name -o tsv)"  # SP AppId
-                    OID="$(az ad sp show --id "${APP_ID}" --query id -o tsv 2>/dev/null || echo '')"
-                    if [ -z "$OID" ]; then
-                      OID="$(az ad signed-in-user show --query id -o tsv 2>/dev/null || echo '')"
-                    fi
-                    [ -n "$OID" ] || { echo "ERROR: Could not resolve principal ObjectId"; exit 1; }
-                    echo "Resolved ObjectId: $OID"
-
-                    # Create a tiny empty ARM template in-place
-                    cat > /tmp/empty.json <<'JSON'
+                    # Minimal empty template
+                    cat > /tmp/emptyTemplate.json <<'JSON'
                     {
-                      "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+                      "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
                       "contentVersion": "1.0.0.0",
                       "parameters": {},
                       "resources": []
                     }
                     JSON
 
-                    echo "Attempting validate on empty template (should succeed with Contributor)..."
+                    echo "POST ${URI}"
                     set +e
-                    az deployment group validate \
-                      --resource-group "$RG" \
-                      --name "rbac-probe-$(date +%s)" \
-                      --template-file /tmp/empty.json \
-                      -o table
+                    az rest --method post --uri "$URI" \
+                      --headers "Content-Type=application/json" \
+                      --body @"@/tmp/emptyTemplate.json" -o jsonc
                     RC=$?
                     set -e
 
-                    if [ $RC -ne 0 ]; then
-                      echo "RESULT: Authorization to validate is failing for ObjectId $OID at $SCOPE"
-                      exit 2
+                    if [ $RC -eq 0 ]; then
+                      echo "RESULT: Validate via ARM REST succeeded — principal has deployment.validate rights."
                     else
-                      echo "RESULT: Validate succeeded; deployment permissions are OK for ObjectId $OID"
+                      echo "RESULT: Validate via ARM REST failed (this is a *real* service response, not a CLI bug)."
+                      exit $RC
                     fi
+
 
 
 
