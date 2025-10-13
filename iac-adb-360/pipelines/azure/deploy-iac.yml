@@ -80,8 +80,11 @@ stages:
             echo "Bicep not found; downloading latest..."
             sudo curl -fsSL -o /usr/local/bin/bicep \
               https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
-            sudo chmod +x /usr/local/bin/bicep
+            sudo chmod +x /usr/local/bin/bicep          
           else
+            echo "Bicep already available at: ${SRC}"
+          fi
+
 
     - task: AzureCLI@2
       displayName: Install & sanity-check Bicep
