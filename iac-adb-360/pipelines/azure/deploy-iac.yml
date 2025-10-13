@@ -143,6 +143,18 @@ stages:
           sudo apt-get install -y powershell
           pwsh --version
 
+    - task: Bash@3
+      displayName: Install bicep globally for pwsh
+      inputs:
+        targetType: inline
+        script: |
+          set -euo pipefail
+          echo "Installing bicep..."
+          curl -fsSL https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64 -o bicep
+          chmod +x bicep
+          sudo mv bicep /usr/local/bin/bicep
+          which bicep && bicep --version
+
 
     - task: PowerShell@2
       displayName: Validate Bicep via PowerShell
