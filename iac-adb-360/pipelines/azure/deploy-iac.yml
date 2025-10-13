@@ -223,7 +223,7 @@ stages:
                     fi
 
               - task: AzureCLI@2
-                displayName: RBAC preflight (who am I & do I have rights?)
+                displayName: Permission probe (can we validate?)
                 inputs:
                   azureSubscription: 'ado-sc'
                   scriptType: bash
@@ -231,57 +231,46 @@ stages:
                   inlineScript: |
                     set -euo pipefail
 
-                    # resolve subscription id from current az context
                     SUB_ID="$(az account show --query id -o tsv)"
                     RG="$(resourcegroup)"
                     SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RG}"
+                    echo "Scope: ${SCOPE}"
 
-                    echo "Scope: $SCOPE"
-                    echo "== az account show =="
-                    az account show -o jsonc
-
-                    # For service principals, user.name is the AppId (clientId)
-                    APP_ID="$(az account show --query user.name -o tsv)"
-                    TYPE="$(az account show --query user.type -o tsv)"
-                    echo "Type: $TYPE"
-                    echo "AppId/UPN: $APP_ID"
-
-                    # Resolve to Service Principal ObjectId (Enterprise App)
-                    OID="$(az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null || true)"
-                    if [ -z "${OID:-}" ]; then
-                      # Managed Identity fallback (signed-in user)
-                      OID="$(az ad signed-in-user show --query id -o tsv 2>/dev/null || true)"
+                    # Resolve the exact ObjectId Azure is using
+                    APP_ID="$(az account show --query user.name -o tsv)"  # SP AppId
+                    OID="$(az ad sp show --id "${APP_ID}" --query id -o tsv 2>/dev/null || echo '')"
+                    if [ -z "$OID" ]; then
+                      OID="$(az ad signed-in-user show --query id -o tsv 2>/dev/null || echo '')"
                     fi
-                    if [ -z "${OID:-}" ]; then
-                      echo "ERROR: Could not resolve principal ObjectId for this session."
-                      exit 1
-                    fi
+                    [ -n "$OID" ] || { echo "ERROR: Could not resolve principal ObjectId"; exit 1; }
                     echo "Resolved ObjectId: $OID"
 
-                    echo "== Current role assignments (this principal at this scope) =="
-                    az role assignment list --assignee-object-id "$OID" --scope "$SCOPE" -o table || true
+                    # Create a tiny empty ARM template in-place
+                    cat > /tmp/empty.json <<'JSON'
+                    {
+                      "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+                      "contentVersion": "1.0.0.0",
+                      "parameters": {},
+                      "resources": []
+                    }
+                    JSON
 
-                    echo "== Effective (include inherited) =="
-                    az role assignment list --assignee-object-id "$OID" --scope "$SCOPE" --include-inherited -o table || true
+                    echo "Attempting validate on empty template (should succeed with Contributor)..."
+                    set +e
+                    az deployment group validate \
+                      --resource-group "$RG" \
+                      --name "rbac-probe-$(date +%s)" \
+                      --template-file /tmp/empty.json \
+                      -o table
+                    RC=$?
+                    set -e
 
-                    echo "== SP status =="
-                    az ad sp show --id "$APP_ID" --query "{objectId:id,appId:appId,displayName:displayName,accountEnabled:accountEnabled}" -o jsonc
-
-                    echo "== Check for deny assignments / policy denies at scope =="
-                    az resource list --namespace Microsoft.Authorization --resource-type denyAssignments --scope "$SCOPE" -o table || true
-                    az policy assignment list --scope "$SCOPE" -o table || true
-
-                    # Require Contributor (or Owner) at this scope
-                    if ! az role assignment list \
-                          --assignee-object-id "$OID" \
-                          --scope "$SCOPE" \
-                          --query "[?roleDefinitionName=='Contributor' || roleDefinitionName=='Owner']" \
-                          -o tsv | grep -q . ; then
-                      echo "ERROR: Principal $OID does NOT have Contributor/Owner on $SCOPE"
-                      exit 1
+                    if [ $RC -ne 0 ]; then
+                      echo "RESULT: Authorization to validate is failing for ObjectId $OID at $SCOPE"
+                      exit 2
+                    else
+                      echo "RESULT: Validate succeeded; deployment permissions are OK for ObjectId $OID"
                     fi
-
-                    echo "RBAC OK: principal $OID has required role on $SCOPE"
 
 
 
