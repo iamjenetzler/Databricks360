@@ -131,13 +131,18 @@ stages:
           fi
 
     - task: Bash@3
-      displayName: Install latest Azure CLI
+      displayName: Install PowerShell Core (pwsh)
       inputs:
         targetType: inline
         script: |
           set -euo pipefail
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          az version
+          echo "Installing PowerShell Core..."
+          wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
+          pwsh --version
+
 
     - task: PowerShell@2
       displayName: Validate Bicep via PowerShell
