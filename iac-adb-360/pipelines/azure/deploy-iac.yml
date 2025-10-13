@@ -204,9 +204,32 @@ stages:
           deploy:
             steps:
               - checkout: self
+
+              # 1) Compile Bicep to JSON first
               - task: AzureCLI@2
+                displayName: Compile Bicep to JSON
                 inputs:
                   azureSubscription: 'ado-sc'
-                  scriptType: 'bash'
-                  scriptLocation: 'inlineScript'
-                  inlineScript: 'az deployment group create --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -euo pipefail
+                    az bicep install
+                    az bicep build \
+                      --file ./iac-adb-360/main.bicep \
+                      --out-file ./iac-adb-360/main.json
+
+              # 2) Deploy with AzurePowerShell@5 (auto-auth with ado-sc)
+              - task: AzurePowerShell@5
+                displayName: Deploy via AzurePowerShell
+                inputs:
+                  azureSubscription: 'ado-sc'
+                  ScriptType: 'InlineScript'
+                  Inline: |
+                    Install-Module Az.Resources -Force -Scope CurrentUser
+                    New-AzResourceGroupDeployment `
+                      -ResourceGroupName "$(resourcegroup)" `
+                      -TemplateFile "./iac-adb-360/main.json" `
+                      -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" } `
+                      -Mode Incremental -Verbose
+                  azurePowerShellVersion: 'LatestVersion'
