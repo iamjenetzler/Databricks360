@@ -213,14 +213,14 @@ stages:
                   scriptType: bash
                   scriptLocation: inlineScript
                   inlineScript: |
-                  set -euo pipefail
-                  az bicep install
-                  # Compile with compatible flags
-                  if az bicep build --help | grep -q -- "--outfile"; then
-                    az bicep build --file ./iac-adb-360/main.bicep --outfile ./iac-adb-360/main.json
-                  else
-                    az bicep build --file ./iac-adb-360/main.bicep --stdout > ./iac-adb-360/main.json
-                  fi
+                    set -euo pipefail
+                    az bicep install
+                    # Compile with compatible flags
+                    if az bicep build --help | grep -q -- "--outfile"; then
+                      az bicep build --file ./iac-adb-360/main.bicep --outfile ./iac-adb-360/main.json
+                    else
+                      az bicep build --file ./iac-adb-360/main.bicep --stdout > ./iac-adb-360/main.json
+                    fi
 
               # 2) Deploy with AzurePowerShell@5 (auto-auth with ado-sc)
               - task: AzurePowerShell@5
