@@ -197,7 +197,7 @@ stages:
         inlineScript: |
           set -euo pipefail
           echo "Fetching recent failed 'Validate' operations from Activity Log..."
-          . ./.az272/bin/activate
+          
           az monitor activity-log list \
             --resource-group "$(resourcegroup)" \
             --status Failed \
