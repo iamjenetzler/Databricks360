@@ -165,6 +165,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -euo pipefail
+          echo "Running What-If validation..."
           echo "Fetching recent failed 'Validate' operations from Activity Log..."
           az monitor activity-log list \
             --resource-group "$(resourcegroup)" \
