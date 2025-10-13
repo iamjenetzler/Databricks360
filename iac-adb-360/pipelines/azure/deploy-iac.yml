@@ -223,20 +223,20 @@ stages:
                     fi
 
               - task: AzureCLI@2
-                displayName: Permission probe via ARM REST (validate)
+                displayName: Permission probe via ARM REST (validate) with jq
                 inputs:
                   azureSubscription: 'ado-sc'
                   scriptType: bash
                   scriptLocation: inlineScript
                   inlineScript: |
                     set -euo pipefail
+                    sudo apt-get update -y && sudo apt-get install -y jq >/dev/null
 
                     SUB_ID="$(az account show --query id -o tsv)"
-                    RG="rg-wus2-adb360-44281721013-dev"   # <-- corrected RG
+                    RG="$(resourcegroup)"
                     URI="https://management.azure.com/subscriptions/${SUB_ID}/resourcegroups/${RG}/providers/Microsoft.Resources/deployments/rbac-probe/validate?api-version=2021-04-01"
 
-                    # Minimal empty template
-                    cat > /tmp/emptyTemplate.json <<'TJSON'
+                    cat >/tmp/emptyTemplate.json <<'TJSON'
                     {
                       "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
                       "contentVersion": "1.0.0.0",
@@ -245,21 +245,20 @@ stages:
                     }
                     TJSON
 
-                    # Wrap as deployment validate payload
                     jq -n --argfile tmpl /tmp/emptyTemplate.json '{
                       "properties": {
                         "mode": "Incremental",
                         "template": $tmpl,
                         "parameters": {}
                       }
-                    }' > /tmp/validateBody.json
+                    }' >/tmp/validateBody.json
 
                     echo "POST ${URI}"
                     az rest --method post --uri "$URI" \
                       --headers "Content-Type=application/json" \
                       --body @/tmp/validateBody.json -o jsonc
 
-                    echo "RESULT: Validate via ARM REST succeeded — principal has deployment.validate rights."
+
 
 
               # 2) Deploy with AzurePowerShell@5 (auto-auth with ado-sc)
