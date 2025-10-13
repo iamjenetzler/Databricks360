@@ -137,32 +137,19 @@ stages:
           python3 -V
           python3 -m pip --version || true
 
-    - task: Bash@3
-      displayName: Create venv and install Azure CLI 2.72.0
+    - task: PowerShell@2
+      displayName: Test-AzResourceGroupDeployment (no CLI bug)
       inputs:
         targetType: inline
         script: |
-          set -euo pipefail
-          python3 -m venv .az272
-          . ./.az272/bin/activate
-          pip install --upgrade pip
-          pip install "azure-cli==2.72.0"
-          az version
-
-    - task: AzureCLI@2
-      displayName: Validate Bicep (az 2.72.0)
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-          . ./.az272/bin/activate
-          az deployment group validate \
-            --resource-group "$(resourcegroup)" \
-            --template-file ./iac-adb-360/main.bicep \
-            --parameters baseName="$(baseName)" env="$(env)" \
-            --only-show-errors
+          Set-StrictMode -Version Latest
+          Install-Module Az.Resources -Scope CurrentUser -Force -AllowClobber
+          Connect-AzAccount -Identity
+          Test-AzResourceGroupDeployment `
+            -ResourceGroupName "$(resourcegroup)" `
+            -TemplateFile "./iac-adb-360/main.bicep" `
+            -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" } `
+            -Verbose
 
     - task: AzureCLI@2
       displayName: Dump RG Activity Log (last 2h, Validate failures)
