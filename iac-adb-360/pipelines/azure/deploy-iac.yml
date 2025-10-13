@@ -139,19 +139,19 @@ stages:
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
           az version
 
-    - task: AzureCLI@2
-      displayName: What-If Bicep (latest az, with debug)
+    - task: PowerShell@2
+      displayName: Validate Bicep via PowerShell
       inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          az deployment group validate \
-          --resource-group "$(resourcegroup)" \
-          --name "validate-$(Build.BuildId)" \
-          --template-file ./iac-adb-360/main.bicep \
-          --parameters baseName="$(baseName)" env="$(env)" \
-          --only-show-errors
+        targetType: inline
+        script: |
+          Install-Module Az.Resources -Force -Scope CurrentUser
+          Connect-AzAccount -Identity
+          Test-AzResourceGroupDeployment `
+            -ResourceGroupName "$(resourcegroup)" `
+            -TemplateFile "./iac-adb-360/main.bicep" `
+            -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" } `
+            -Verbose
+
 
 
 
