@@ -159,11 +159,9 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Current working directory: $(pwd)"
-          ls -la
-          ls -la .az272/bin
+
           set -euo pipefail
-          . ./.az272/bin/activate
+          
           az deployment group validate \
             --resource-group "$(resourcegroup)" \
             --template-file ./iac-adb-360/main.bicep \
