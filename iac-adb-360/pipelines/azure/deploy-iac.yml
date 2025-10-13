@@ -107,7 +107,7 @@ stages:
     steps:
     - script: |
         echo "Checking bicep syntax..."
-        az bicep build ./iac-adb-360/main.bicep
+        az bicep build --file ./iac-adb-360/main.bicep
       displayName: checking bicep syntax ...
 
 
