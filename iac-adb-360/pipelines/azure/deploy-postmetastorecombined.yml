@@ -37,6 +37,18 @@ stages:
           fi
         displayName: 'Check and Install Databricks CLI'
 
+      - script: |
+          set -euo pipefail
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          if ! command -v az >/dev/null 2>&1; then
+            echo "Azure CLI not found. Installing..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            az config set extension.dynamic_install_allow_preview=true
+
+          else
+            echo "Azure CLI already installed. Skipping."
+          fi
+        displayName: 'Check and Install AZ CLI'
 
       - task: AzureCLI@2
         displayName: 'Call script to assign workspace to repo'
