@@ -58,10 +58,16 @@ stages:
       displayName: 'Install Databricks CLI v2 (sudo)'
       inputs:
         script: |
-          set -euxo pipefail
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo bash
-          echo "##vso[task.prependpath]/usr/local/bin"
+          set -euo pipefail
+          if command -v databricks >/dev/null 2>&1; then
+            echo "Databricks CLI already present at: $(command -v databricks)"
+            databricks version || true
+            exit 0
+          fi
+          echo "Installing Databricks CLI..."
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
           databricks version
+      
 # ----------------- create catalog + schema -----------------
 - stage: s_createcatalogandschema
   displayName: 'create catalog and schema'
