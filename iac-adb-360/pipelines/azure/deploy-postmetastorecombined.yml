@@ -4,22 +4,23 @@ trigger:
   branches:
     include:
       - devy
+
   paths:
     include:
       - '*'
 
 variables:
-  - ${{ if or(eq(variables['Build.SourceBranchName'], 'devy'), eq(variables['System.PullRequest.TargetBranchName'], 'devy')) }}:
-    - group: vgdevadb360
-  - ${{ else }}:
+  - ${{ if or(eq(variables['Build.SourceBranchName'], 'dev'), eq(variables['System.PullRequest.TargetBranchName'], 'dev')) }}:
+    - group: vgdevadb360 
+  - ${{ else }}: 
     - group: vgprdadb360
 
+
 pool:
-  name: jensazureagentpool
+  vmImage: 'ubuntu-latest'
 
 stages:
 
-# ----------------- assign repo -----------------
 - stage: s_assignrepo
   displayName: 'assign repository to spn'
   jobs:
@@ -28,35 +29,22 @@ stages:
     pool:
       name: jensazureagentpool
     steps:
-    - checkout: self
 
-    - task: CmdLine@2
-      displayName: 'Prereqs (unzip)'
+    - script: |
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+      displayName: Install databricks cli
+
+    - task: AzureCLI@2
+      displayName: 'Call script to assign workspace to repo'
       inputs:
-        script: |
-          set -eux
-          if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y unzip
-          elif command -v yum >/dev/null 2>&1; then
-            sudo yum install -y unzip
-          elif command -v zypper >/dev/null 2>&1; then
-            sudo zypper install -y unzip
-          else
-            echo "No supported pkg manager found"; exit 1
-          fi
+        azureSubscription: 'ado-sc'
+        scriptType: 'bash'
+        scriptLocation: 'scriptPath'
+        scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(repourl) $(ghuser) $(ghpat)'
 
-    - task: CmdLine@2
-      displayName: 'Install Databricks CLI v2 (sudo)'
-      inputs:
-        script: |
-          set -euxo pipefail
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo bash
-          echo "##vso[task.prependpath]/usr/local/bin"
-          databricks version
 
-          
-# ----------------- create catalog + schema -----------------
+
 - stage: s_createcatalogandschema
   displayName: 'create catalog and schema'
   jobs:
@@ -65,30 +53,27 @@ stages:
     pool:
       name: jensazureagentpool
     steps:
-    - checkout: self
 
-    # - script: |
-    #     set -euxo pipefail
-    #     curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh \
-    #       | bash -s -- -d "$HOME/.local/bin"
-    #     echo "##vso[task.prependpath]$HOME/.local/bin"
-    #     databricks version
-    #   displayName: 'Install Databricks CLI v2 (user dir)'
+    - script: |
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+      displayName: Install databricks cli
 
     - task: AzureCLI@2
-      displayName: 'Create catalog+schema (separate storage)'
+      displayName: 'Call script to create catalog and schema with its own storage loc'
       inputs:
         azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: scriptPath
+        scriptType: 'bash'
+        scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/create-ms-catalognschema-sepstor.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(catalogstorageaccountname) $(credname) $(accessconnectorid)'
 
     - task: AzureCLI@2
-      displayName: 'Create external location'
+      displayName: 'Call script to create externallocation'
       inputs:
         azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: scriptPath
+        scriptType: 'bash'
+        scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/create-ms-externallocation.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(bronzestorageaccountname) $(credname) $(accessconnectorid)'
+        
+    
