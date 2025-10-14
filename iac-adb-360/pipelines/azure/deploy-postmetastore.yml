@@ -23,25 +23,15 @@ stages:
     steps:
     - script: |
         set -euo pipefail
-        if ! command -v az >/dev/null 2>&1; then
-          echo "Azure CLI not found. Installing..."
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-        else
-          echo "Azure CLI already installed. Skipping."
+        if command -v databricks >/dev/null 2>&1; then
+          echo "Removing existing Databricks CLI at /usr/local/bin/databricks"
+          sudo rm -f /usr/local/bin/databricks
         fi
-        az version | head -n1 || true
-      displayName: 'Check & install Azure CLI'
+        echo "Installing Databricks CLI..."
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+        echo "Installed:"
+        databricks version  
 
-    - script: |
-        set -euo pipefail
-        if ! command -v databricks >/dev/null 2>&1; then
-          echo "Databricks CLI not found. Installing..."
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-        else
-          echo "Databricks CLI already installed. Skipping."
-        fi
-        databricks version || true
-      displayName: 'Check & install Databricks CLI'
 
     - task: AzureCLI@2
       displayName: 'Attach workspace to metastore (account-scoped)'
