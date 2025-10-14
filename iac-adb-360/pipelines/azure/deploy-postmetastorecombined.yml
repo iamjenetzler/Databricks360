@@ -66,10 +66,6 @@ stages:
     pool:
       name: jensazureagentpool
     steps:
-      - script: |
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-        displayName: 'Install Databricks CLI'
-
       - task: AzureCLI@2
         displayName: 'Call script to create catalog and schema with its own storage loc'
         inputs:
