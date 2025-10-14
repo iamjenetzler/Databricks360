@@ -29,6 +29,7 @@ stages:
       name: jensazureagentpool
     steps:
       - script: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
           if ! command -v databricks &> /dev/null; then
             echo "Databricks CLI not found. Installing..."
             curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
