@@ -28,8 +28,9 @@ stages:
     - task: CmdLine@2
       inputs:
         script: |
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-      displayName: 'Install Databricks CLI v 2'
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+      displayName: 'Install Databricks CLI v2 with sudo'
+
 
     - task: AzureCLI@2
       displayName: 'Call script assign workspace to metastore'
