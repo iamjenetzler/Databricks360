@@ -29,14 +29,18 @@ stages:
       name: jensazureagentpool
     steps:
     - checkout: self
-
+          
     - script: |
-        set -euxo pipefail
-        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh \
-          | bash -s -- -d "$HOME/.local/bin"
-        echo "##vso[task.prependpath]$HOME/.local/bin"
+        set -euo pipefail
+        if command -v databricks >/dev/null 2>&1; then
+          echo "Databricks CLI already present at: $(command -v databricks)"
+          databricks version || true
+          exit 0
+        fi
+        echo "Installing Databricks CLI..."
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
         databricks version
-      displayName: 'Install Databricks CLI v2 (user dir)'
+      displayName: 'Ensure Databricks CLI'
 
     - task: CmdLine@2
       displayName: 'Prereqs (unzip)'
