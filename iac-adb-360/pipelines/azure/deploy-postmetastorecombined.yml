@@ -62,6 +62,8 @@ stages:
           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo bash
           echo "##vso[task.prependpath]/usr/local/bin"
           databricks version
+
+          
 # ----------------- create catalog + schema -----------------
 - stage: s_createcatalogandschema
   displayName: 'create catalog and schema'
