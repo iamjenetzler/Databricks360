@@ -27,26 +27,29 @@ stages:
     - checkout: self
 
     - task: CmdLine@2
+      displayName: 'Prereqs (unzip)'
+      inputs:
+        script: |
+          set -eux
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y unzip
+          elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y unzip
+          elif command -v zypper >/dev/null 2>&1; then
+            sudo zypper install -y unzip
+          else
+            echo "No supported pkg manager found"; exit 1
+          fi
+
+    - task: CmdLine@2
       displayName: 'Install Databricks CLI v2 (sudo)'
       inputs:
         script: |
           set -euxo pipefail
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh \
-            | sudo bash
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo bash
           echo "##vso[task.prependpath]/usr/local/bin"
           databricks version
-
-
-
-
-    - task: AzureCLI@2
-      displayName: 'Call script: attach workspace to metastore'
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: scriptPath
-        scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
-        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename)'
 
 # ----------------- assign repository to spn -----------------
 - stage: s_assignrepo
