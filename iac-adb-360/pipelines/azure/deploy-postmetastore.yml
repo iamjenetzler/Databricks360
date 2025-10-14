@@ -3,66 +3,75 @@ name: PostMetastoreDeploy
 trigger:
   branches:
     include:
-      - devy
-
+      - dev        # <-- was "devy"
   paths:
     include:
       - '*'
 
 variables:
   - ${{ if or(eq(variables['Build.SourceBranchName'], 'dev'), eq(variables['System.PullRequest.TargetBranchName'], 'dev')) }}:
-    - group: vgdevadb360 
-  - ${{ else }}: 
+    - group: vgdevadb360
+  - ${{ else }}:
     - group: vgprdadb360
 
-
 stages:
+# ----------------- assign workspace to metastore -----------------
 - stage: s_assignmetastore
   displayName: 'assign workspace to metastore'
   jobs:
   - job: j_assignmetastore
     displayName: 'job assign workspace to metastore'
-  pool:
-    name: jensazureagentpool
+    pool:
+      name: jensazureagentpool
     steps:
+    - checkout: self
+
     - task: CmdLine@2
+      displayName: 'Install Databricks CLI v2'
       inputs:
         script: |
+          set -e
           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-      displayName: 'Install Databricks CLI v 2'
+          which databricks || echo "databricks not on PATH"
+          databricks version || true
 
     - task: AzureCLI@2
-      displayName: 'Call script assign workspace to metastore'
+      displayName: 'Call script: attach workspace to metastore'
       inputs:
         azureSubscription: 'adb-sc'
-        scriptType: 'bash'
-        scriptLocation: 'scriptPath'
+        scriptType: bash
+        scriptLocation: scriptPath
         scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename)'
 
+# ----------------- assign repository to spn -----------------
 - stage: s_assignrepo
   displayName: 'assign repository to spn'
   jobs:
   - job: j_assignrepo
-    displayName: 'Job assign repository to spn'
-  pool:
-    name: jensazureagentpool
+    displayName: 'job assign repository to spn'
+    pool:
+      name: jensazureagentpool
     steps:
+    - checkout: self
+
     - task: CmdLine@2
+      displayName: 'Install Databricks CLI v2'
       inputs:
         script: |
+          set -e
           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-      displayName: 'Install Databricks CLI v 2'
+          which databricks || echo "databricks not on PATH"
+          databricks version || true
 
     - task: AzureCLI@2
-      displayName: 'Call script to assign workspace to repo'
+      displayName: 'Call script: attach to repo (GitHub)'
       inputs:
         azureSubscription: 'adb-sc'
-        scriptType: 'bash'
-        scriptLocation: 'scriptPath'
+        scriptType: bash
+        scriptLocation: scriptPath
         scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(repourl) $(ghuser) $(ghpat)'
-
 
 # - stage: s_createcluster
 #   displayName: 'create the cluster'
