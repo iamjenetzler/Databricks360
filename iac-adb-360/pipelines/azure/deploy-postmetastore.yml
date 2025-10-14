@@ -40,15 +40,7 @@ stages:
       #       echo "Databricks CLI version:"
       #       databricks version || echo "Databricks not found"
 
-    - task: CmdLine@2
-      displayName: 'Normalize line endings (CRLF -> LF)'
-      inputs:
-        script: |          
-          set -eux
-          # normalize all helper scripts to LF to avoid \r issues
-          find ./iac-adb-360/helpers -type f -name "*.sh" -print0 | xargs -0 sed -i 's/\r$//'
-      
-      
+          
     - task: AzureCLI@2
       displayName: 'Call script assign workspace to metastore'
       inputs:
