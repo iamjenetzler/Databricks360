@@ -24,21 +24,28 @@ stages:
     displayName: 'job assign workspace to metastore'
   pool:
     name: jensazureagentpool
-    steps:
-    - task: CmdLine@2
-      displayName: 'Install Databricks CLI v2'
-      inputs:
-        script: |
-          set -euxo pipefail
-          echo "Installing Databricks CLI to ~/.local/bin..."
-          mkdir -p ~/.local/bin
-          export PATH="$HOME/.local/bin:$PATH"
+    steps:  
+    # 1) Ensure Azure CLI is present
+    - script: |
+        set -euo pipefail
+        if ! command -v az >/dev/null 2>&1; then
+          echo "Azure CLI not found. Installing..."
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        else
+          echo "Azure CLI already installed. Skipping."
+        fi
+      displayName: 'Check & install Azure CLI'
 
-          # Download & install CLI locally (not system-wide)
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
-
-          echo "Databricks CLI version:"
-          databricks version || echo "Databricks not found"
+    # 2) Ensure Databricks CLI is present
+    - script: |
+        set -euo pipefail
+        if ! command -v databricks >/dev/null 2>&1; then
+          echo "Databricks CLI not found. Installing..."
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+        else
+          echo "Databricks CLI already installed. Skipping."
+        fi
+      displayName: 'Check & install Databricks CLI'
 
 
     - task: AzureCLI@2
