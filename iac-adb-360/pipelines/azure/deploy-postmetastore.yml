@@ -27,15 +27,17 @@ stages:
     - checkout: self
 
     - task: CmdLine@2
-      displayName: 'Install Databricks CLI v2'
+      displayName: 'Install Databricks CLI v2 manually'
       inputs:
         script: |
           set -euxo pipefail
-          echo "Installing Databricks CLI..."
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+          echo "Installing Databricks CLI manually..."
+          mkdir -p ~/.local/bin
+          curl -L https://github.com/databricks/cli/releases/latest/download/databricks_linux_amd64 \
+            -o ~/.local/bin/databricks
+          chmod +x ~/.local/bin/databricks
           export PATH="$HOME/.local/bin:$PATH"
-          echo "CLI version:"
-          databricks version || echo "Databricks CLI not found"
+          databricks version
 
 
     - task: AzureCLI@2
