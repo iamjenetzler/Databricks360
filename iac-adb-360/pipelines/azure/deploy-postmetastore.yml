@@ -13,6 +13,9 @@ variables:
     - group: vgprdadb360
 
 stages:
+# =======================
+# Stage 1: Attach workspace to metastore
+# =======================
 - stage: s_assignmetastore
   displayName: 'assign workspace to metastore'
   jobs:
@@ -21,40 +24,7 @@ stages:
     pool:
       name: jensazureagentpool
     steps:
-    - script: |
-        set -euo pipefail
-        if command -v databricks >/dev/null 2>&1; then
-          echo "Removing existing Databricks CLI at /usr/local/bin/databricks"
-          sudo rm -f /usr/local/bin/databricks
-        fi
-        echo "Installing Databricks CLI..."
-        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-        echo "Installed:"
-        databricks version  
-
-
-    - task: AzureCLI@2
-      displayName: 'Attach workspace to metastore (account-scoped)'
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: 'bash'
-        scriptLocation: 'scriptPath'
-        scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
-        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename)'
-        failOnStandardError: true
-      env:
-        DATABRICKS_ACCOUNT_ID: $(accountId)
-        UC_REGION: westus2
-        UC_STORAGE_ROOT: $(ucStorageRoot)   # set in variable group; no <angle-brackets>
-
-- stage: s_assignrepo
-  displayName: 'assign repository to spn'
-  jobs:
-  - job: j_assignrepo
-    displayName: 'Job assign repository to spn'
-    pool:
-      name: jensazureagentpool
-    steps:
+    # Ensure Azure CLI (self-hosted agent)
     - script: |
         set -euo pipefail
         if ! command -v az >/dev/null 2>&1; then
@@ -66,17 +36,111 @@ stages:
         az version | head -n1 || true
       displayName: 'Check & install Azure CLI'
 
+    # Ensure jq (script relies on it)
     - script: |
         set -euo pipefail
-        if ! command -v databricks >/dev/null 2>&1; then
-          echo "Databricks CLI not found. Installing..."
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+        if ! command -v jq >/dev/null 2>&1; then
+          echo "jq not found. Installing..."
+          sudo apt-get update -y
+          sudo apt-get install -y jq
         else
-          echo "Databricks CLI already installed. Skipping."
+          echo "jq already installed. Skipping."
         fi
-        databricks version || true
-      displayName: 'Check & install Databricks CLI'
+        jq --version || true
+      displayName: 'Check & install jq'
 
+    # Ensure Databricks CLI (system-wide)
+    - script: |
+        set -euo pipefail
+        if command -v databricks >/dev/null 2>&1; then
+          echo "Databricks CLI already present at: $(command -v databricks)"
+          databricks version || true
+          exit 0
+        fi
+        echo "Installing Databricks CLI..."
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+        databricks version
+      displayName: 'Ensure Databricks CLI'
+
+    # Prep az extension (Databricks) & allow preview w/out prompt
+    - task: AzureCLI@2
+      displayName: 'Prep az extensions (Databricks)'
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt
+          az config set extension.dynamic_install_allow_preview=true
+          az extension add --name databricks --upgrade || az extension update --name databricks
+          az extension list -o table
+
+    # Run your attach script
+    - task: AzureCLI@2
+      displayName: 'Attach workspace to metastore (account-scoped)'
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: 'bash'
+        scriptLocation: 'scriptPath'
+        scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename)'
+        failOnStandardError: false   # az prints harmless warnings to stderr
+      env:
+        DATABRICKS_ACCOUNT_ID: $(accountId)
+        UC_REGION: westus2
+        UC_STORAGE_ROOT: $(ucStorageRoot)   # define this in your variable group
+
+# =======================
+# Stage 2: Attach repo to workspace
+# =======================
+- stage: s_assignrepo
+  displayName: 'assign repository to spn'
+  jobs:
+  - job: j_assignrepo
+    displayName: 'job assign repository to spn'
+    pool:
+      name: jensazureagentpool
+    steps:
+    # Ensure Azure CLI (self-hosted agent)
+    - script: |
+        set -euo pipefail
+        if ! command -v az >/dev/null 2>&1; then
+          echo "Azure CLI not found. Installing..."
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        else
+          echo "Azure CLI already installed. Skipping."
+        fi
+        az version | head -n1 || true
+      displayName: 'Check & install Azure CLI'
+
+    # Ensure Databricks CLI (system-wide)
+    - script: |
+        set -euo pipefail
+        if command -v databricks >/dev/null 2>&1; then
+          echo "Databricks CLI already present at: $(command -v databricks)"
+          databricks version || true
+          exit 0
+        fi
+        echo "Installing Databricks CLI..."
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+        databricks version
+      displayName: 'Ensure Databricks CLI'
+
+    # Optional: ensure jq here too if your repo script uses it
+    - script: |
+        set -euo pipefail
+        if ! command -v jq >/dev/null 2>&1; then
+          echo "jq not found. Installing..."
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+        else
+          echo "jq already installed. Skipping."
+        fi
+        jq --version || true
+      displayName: 'Check & install jq'
+
+    # Run your repo attach script
     - task: AzureCLI@2
       displayName: 'Call script to assign workspace to repo'
       inputs:
@@ -85,4 +149,4 @@ stages:
         scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(repourl) $(ghuser) $(ghpat)'
-        failOnStandardError: true
+        failOnStandardError: false
