@@ -22,61 +22,65 @@ stages:
   jobs:
   - job: j_assignmetastore
     displayName: 'job assign workspace to metastore'
-    pool:
-      name: jensazureagentpool
+  pool:
+    name: jensazureagentpool
     steps:
-      # - task: CmdLine@2
-      #   displayName: 'Install Databricks CLI v2'
-      #   inputs:
-      #     script: |
-      #       set -euxo pipefail
-      #       echo "Installing Databricks CLI to ~/.local/bin..."
-      #       mkdir -p ~/.local/bin
-      #       export PATH="$HOME/.local/bin:$PATH"
+    - task: CmdLine@2
+      displayName: 'Install Databricks CLI v2'
+      inputs:
+        script: |
+          set -euxo pipefail
+          echo "Installing Databricks CLI to ~/.local/bin..."
+          mkdir -p ~/.local/bin
+          export PATH="$HOME/.local/bin:$PATH"
 
-      #       # Download & install CLI locally (not system-wide)
-      #       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
+          # Download & install CLI locally (not system-wide)
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
 
-      #       echo "Databricks CLI version:"
-      #       databricks version || echo "Databricks not found"
+          echo "Databricks CLI version:"
+          databricks version || echo "Databricks not found"
 
-          
+
     - task: AzureCLI@2
-      displayName: 'Call script assign workspace to metastore'
+      displayName: 'Attach workspace to metastore (account-scoped)'
       inputs:
         azureSubscription: 'ado-sc'
         scriptType: 'bash'
         scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename)'
+      env:
+        DATABRICKS_ACCOUNT_ID: $(accountId)                 # the Databricks Account ID
+        UC_REGION: westus2                                  # must match workspace region
+        UC_STORAGE_ROOT: abfss://uc-root@<acct>.dfs.core.windows.net/
 
 - stage: s_assignrepo
   displayName: 'assign repository to spn'
   jobs:
   - job: j_assignrepo
     displayName: 'Job assign repository to spn'
-    pool:
-      name: jensazureagentpool
+  pool:
+    name: jensazureagentpool
     steps:
-    # - task: CmdLine@2
-    #   displayName: 'Install Databricks CLI v2'
-    #   inputs:
-    #     script: |
-    #       set -euxo pipefail
-    #       echo "Installing Databricks CLI to ~/.local/bin..."
-    #       mkdir -p ~/.local/bin
-    #       export PATH="$HOME/.local/bin:$PATH"
+    - task: CmdLine@2
+      displayName: 'Install Databricks CLI v2'
+      inputs:
+        script: |
+          set -euxo pipefail
+          echo "Installing Databricks CLI to ~/.local/bin..."
+          mkdir -p ~/.local/bin
+          export PATH="$HOME/.local/bin:$PATH"
 
-    #       # Download & install CLI locally (not system-wide)
-    #       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
+          # Download & install CLI locally (not system-wide)
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
 
-    #       echo "Databricks CLI version:"
-    #       databricks version || echo "Databricks not found"
+          echo "Databricks CLI version:"
+          databricks version || echo "Databricks not found"
 
     - task: AzureCLI@2
       displayName: 'Call script to assign workspace to repo'
       inputs:
-        azureSubscription: 'ado-sc'
+        azureSubscription: 'adb-sc'
         scriptType: 'bash'
         scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
