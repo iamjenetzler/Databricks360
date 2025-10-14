@@ -42,13 +42,17 @@ stages:
 
 
     - task: AzureCLI@2
-      displayName: 'Call script assign workspace to metastore'
+      displayName: 'Attach workspace to metastore (account-scoped)'
       inputs:
-        azureSubscription: 'adb-sc'
+        azureSubscription: 'ado-sc'
         scriptType: 'bash'
         scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename)'
+      env:
+        DATABRICKS_ACCOUNT_ID: $(accountId)                 # the Databricks Account ID
+        UC_REGION: westus2                                  # must match workspace region
+        UC_STORAGE_ROOT: abfss://uc-root@<acct>.dfs.core.windows.net/
 
 - stage: s_assignrepo
   displayName: 'assign repository to spn'
