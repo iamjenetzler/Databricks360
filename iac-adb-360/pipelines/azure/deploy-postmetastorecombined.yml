@@ -44,7 +44,6 @@ stages:
             echo "Azure CLI not found. Installing..."
             curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
             az config set extension.dynamic_install_allow_preview=true
-
           else
             echo "Azure CLI already installed. Skipping."
           fi
