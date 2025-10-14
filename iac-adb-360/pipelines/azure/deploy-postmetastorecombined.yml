@@ -30,14 +30,6 @@ stages:
     steps:
     - checkout: self
 
-    - script: |
-        set -euxo pipefail
-        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh \
-          | bash -s -- -d "$HOME/.local/bin"
-        echo "##vso[task.prependpath]$HOME/.local/bin"
-        databricks version
-      displayName: 'Install Databricks CLI v2 (user dir)'
-
     - task: CmdLine@2
       displayName: 'Prereqs (unzip)'
       inputs:
