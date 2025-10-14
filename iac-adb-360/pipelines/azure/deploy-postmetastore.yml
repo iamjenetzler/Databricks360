@@ -63,13 +63,28 @@ stages:
     - checkout: self
 
     - task: CmdLine@2
-      displayName: 'Install Databricks CLI v2'
+      displayName: 'Prereqs (unzip)'
       inputs:
         script: |
-          set -e
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-          which databricks || echo "databricks not on PATH"
-          databricks version || true
+          set -eux
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y unzip
+          elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y unzip
+          elif command -v zypper >/dev/null 2>&1; then
+            sudo zypper install -y unzip
+          else
+            echo "No supported pkg manager found"; exit 1
+          fi
+    - task: CmdLine@2
+      displayName: 'Install Databricks CLI v2 (sudo)'
+      inputs:
+        script: |
+          set -euxo pipefail
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo bash
+          echo "##vso[task.prependpath]/usr/local/bin"
+          databricks version
 
     - task: AzureCLI@2
       displayName: 'Call script: attach to repo (GitHub)'
