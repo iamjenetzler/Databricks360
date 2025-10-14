@@ -93,7 +93,7 @@ then
     echo "catalog $catname not found, creating it"
     cat=$(databricks catalogs create  $catname --storage-root $extlocationurl --output json)
     # granting devcat-admins all privileges
-    databricks grants update catalog $catname --json '{ "changes": [{"principal": "devcat-admins", "add" : ["ALL_PRIVILEGES"]}] }'
+    databricks grants update catalog $catname --json '{ "changes": [{"group": "devcat-admins", "add" : ["ALL_PRIVILEGES"]}] }'
     
     echo "creating schema $schemaname"
     databricks schemas create  $schemaname $catname --output json
