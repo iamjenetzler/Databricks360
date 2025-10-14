@@ -30,10 +30,13 @@ stages:
       displayName: 'Install Databricks CLI v2'
       inputs:
         script: |
-          set -e
+          set -euxo pipefail
+          echo "Installing Databricks CLI..."
           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-          which databricks || echo "databricks not on PATH"
-          databricks version || true
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "CLI version:"
+          databricks version || echo "Databricks CLI not found"
+
 
     - task: AzureCLI@2
       displayName: 'Call script: attach workspace to metastore'
