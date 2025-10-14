@@ -42,14 +42,23 @@ stages:
             echo "No supported pkg manager found"; exit 1
           fi
 
-    - task: CmdLine@2
-      displayName: 'Install Databricks CLI v2 (sudo)'
+    # - task: CmdLine@2
+    #   displayName: 'Install Databricks CLI v2 (sudo)'
+    #   inputs:
+    #     script: |
+    #       set -euxo pipefail
+    #       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo bash
+    #       echo "##vso[task.prependpath]/usr/local/bin"
+    #       databricks version
+
+    - task: AzureCLI@2
+      displayName: 'Call script assign workspace to metastore'
       inputs:
-        script: |
-          set -euxo pipefail
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo bash
-          echo "##vso[task.prependpath]/usr/local/bin"
-          databricks version
+        azureSubscription: 'ado-sc'
+        scriptType: 'bash'
+        scriptLocation: 'scriptPath'
+        scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename)'
 
 # ----------------- assign repository to spn -----------------
 - stage: s_assignrepo
