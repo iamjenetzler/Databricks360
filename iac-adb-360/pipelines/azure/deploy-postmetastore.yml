@@ -22,23 +22,23 @@ stages:
   jobs:
   - job: j_assignmetastore
     displayName: 'job assign workspace to metastore'
-  pool:
-    name: jensazureagentpool
+    pool:
+      name: jensazureagentpool
     steps:
-    # - task: CmdLine@2
-    #   displayName: 'Install Databricks CLI v2'
-    #   inputs:
-    #     script: |
-    #       set -euxo pipefail
-    #       echo "Installing Databricks CLI to ~/.local/bin..."
-    #       mkdir -p ~/.local/bin
-    #       export PATH="$HOME/.local/bin:$PATH"
+      # - task: CmdLine@2
+      #   displayName: 'Install Databricks CLI v2'
+      #   inputs:
+      #     script: |
+      #       set -euxo pipefail
+      #       echo "Installing Databricks CLI to ~/.local/bin..."
+      #       mkdir -p ~/.local/bin
+      #       export PATH="$HOME/.local/bin:$PATH"
 
-    #       # Download & install CLI locally (not system-wide)
-    #       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
+      #       # Download & install CLI locally (not system-wide)
+      #       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
 
-    #       echo "Databricks CLI version:"
-    #       databricks version || echo "Databricks not found"
+      #       echo "Databricks CLI version:"
+      #       databricks version || echo "Databricks not found"
 
     - task: CmdLine@2
       displayName: 'Normalize line endings (CRLF -> LF)'
