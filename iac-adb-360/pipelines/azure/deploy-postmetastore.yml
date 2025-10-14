@@ -38,7 +38,7 @@ stages:
     - task: AzureCLI@2
       displayName: 'Call script: attach workspace to metastore'
       inputs:
-        azureSubscription: 'adb360-sc'
+        azureSubscription: 'ado-sc'
         scriptType: bash
         scriptLocation: scriptPath
         scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
@@ -67,7 +67,7 @@ stages:
     - task: AzureCLI@2
       displayName: 'Call script: attach to repo (GitHub)'
       inputs:
-        azureSubscription: 'adb360-sc'
+        azureSubscription: 'ado-sc'
         scriptType: bash
         scriptLocation: scriptPath
         scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
