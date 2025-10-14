@@ -4,24 +4,22 @@ trigger:
   branches:
     include:
       - devy
-
   paths:
     include:
       - '*'
 
 variables:
-  - ${{ if or(eq(variables['Build.SourceBranchName'], 'dev'), eq(variables['System.PullRequest.TargetBranchName'], 'dev')) }}:
-    - group: vgdevadb360 
-  - ${{ else }}: 
+  - ${{ if or(eq(variables['Build.SourceBranchName'], 'devy'), eq(variables['System.PullRequest.TargetBranchName'], 'devy')) }}:
+    - group: vgdevadb360
+  - ${{ else }}:
     - group: vgprdadb360
 
-
 pool:
-  # name: 'ubuntu-latest'
-  name: 'MyNewAgent'
+  name: jensazureagentpool
 
 stages:
 
+# ----------------- assign repo -----------------
 - stage: s_assignrepo
   displayName: 'assign repository to spn'
   jobs:
@@ -29,23 +27,27 @@ stages:
     displayName: 'Job assign repository to spn'
     pool:
       name: jensazureagentpool
-      steps:
+    steps:
+    - checkout: self
 
-      # - script: |
-      #     curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-      #   displayName: Install databricks cli
+    - script: |
+        set -euxo pipefail
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh \
+          | bash -s -- -d "$HOME/.local/bin"
+        echo "##vso[task.prependpath]$HOME/.local/bin"
+        databricks version
+      displayName: 'Install Databricks CLI v2 (user dir)'
 
-      - task: AzureCLI@2
-        displayName: 'Call script to assign workspace to repo'
-        inputs:
-          azureSubscription: 'adb-sc'
-          scriptType: 'bash'
-          scriptLocation: 'scriptPath'
-          scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
-          arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(repourl) $(ghuser) $(ghpat)'
+    - task: AzureCLI@2
+      displayName: 'Call script to assign workspace to repo'
+      inputs:
+        azureSubscription: 'ado-sc'   # <- use the correct service connection
+        scriptType: bash
+        scriptLocation: scriptPath
+        scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(repourl) $(ghuser) $(ghpat)'
 
-
-
+# ----------------- create catalog + schema -----------------
 - stage: s_createcatalogandschema
   displayName: 'create catalog and schema'
   jobs:
@@ -53,26 +55,31 @@ stages:
     displayName: 'job create catalog and schema'
     pool:
       name: jensazureagentpool
-      steps:
+    steps:
+    - checkout: self
 
-      - script: |
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-        displayName: Install databricks cli
+    - script: |
+        set -euxo pipefail
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh \
+          | bash -s -- -d "$HOME/.local/bin"
+        echo "##vso[task.prependpath]$HOME/.local/bin"
+        databricks version
+      displayName: 'Install Databricks CLI v2 (user dir)'
 
-      - task: AzureCLI@2
-        displayName: 'Call script to create catalog and schema with its own storage loc'
-        inputs:
-          azureSubscription: 'adb-sc'
-          scriptType: 'bash'
-          scriptLocation: 'scriptPath'
-          scriptPath: './iac-adb-360/helpers/create-ms-catalognschema-sepstor.sh'
-          arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(catalogstorageaccountname) $(credname) $(accessconnectorid)'
+    - task: AzureCLI@2
+      displayName: 'Create catalog+schema (separate storage)'
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: scriptPath
+        scriptPath: './iac-adb-360/helpers/create-ms-catalognschema-sepstor.sh'
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(catalogstorageaccountname) $(credname) $(accessconnectorid)'
 
-      - task: AzureCLI@2
-        displayName: 'Call script to create externallocation'
-        inputs:
-          azureSubscription: 'adb-sc'
-          scriptType: 'bash'
-          scriptLocation: 'scriptPath'
-          scriptPath: './iac-adb-360/helpers/create-ms-externallocation.sh'
-          arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(bronzestorageaccountname) $(credname) $(accessconnectorid)'
+    - task: AzureCLI@2
+      displayName: 'Create external location'
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: scriptPath
+        scriptPath: './iac-adb-360/helpers/create-ms-externallocation.sh'
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(bronzestorageaccountname) $(credname) $(accessconnectorid)'
