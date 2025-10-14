@@ -27,32 +27,15 @@ stages:
     - checkout: self
 
     - task: CmdLine@2
-      displayName: 'Install Databricks CLI v2'
+      displayName: 'Install Databricks CLI v2 (sudo)'
       inputs:
         script: |
           set -euxo pipefail
-          # Install to a writable dir under the agent's home:
           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh \
-            | bash -s -- -d "$HOME/.local/bin"
-
-          # Make the CLI visible to subsequent tasks in this job:
-          echo "##vso[task.prependpath]$HOME/.local/bin"
-
-          # Sanity check:
+            | sudo bash
+          echo "##vso[task.prependpath]/usr/local/bin"
           databricks version
 
-    - task: CmdLine@2
-      displayName: 'Install Databricks CLI v2 (manual fallback)'
-      inputs:
-        script: |
-          set -euxo pipefail
-          mkdir -p "$HOME/.local/bin"
-          curl -fL https://github.com/databricks/cli/releases/latest/download/databricks_linux_amd64 \
-            -o "$HOME/.local/bin/databricks"
-          chmod +x "$HOME/.local/bin/databricks"
-          echo "##vso[task.prependpath]$HOME/.local/bin"
-          file "$HOME/.local/bin/databricks"   # should show an ELF 64-bit executable
-          databricks version
 
 
 
