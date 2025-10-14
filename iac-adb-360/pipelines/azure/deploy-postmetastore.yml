@@ -41,18 +41,18 @@ stages:
     #       databricks version || echo "Databricks not found"
 
     - task: CmdLine@2
-      displayName: 'Prereqs (unzip)'
+      displayName: 'Normalize line endings (CRLF -> LF)'
       inputs:
         script: |          
           set -eux
           # normalize all helper scripts to LF to avoid \r issues
           find ./iac-adb-360/helpers -type f -name "*.sh" -print0 | xargs -0 sed -i 's/\r$//'
-        displayName: 'Normalize line endings (CRLF -> LF)'
-        
+      
+      
     - task: AzureCLI@2
       displayName: 'Call script assign workspace to metastore'
       inputs:
-        azureSubscription: 'adb-sc'
+        azureSubscription: 'ado-sc'
         scriptType: 'bash'
         scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
@@ -63,8 +63,8 @@ stages:
   jobs:
   - job: j_assignrepo
     displayName: 'Job assign repository to spn'
-  pool:
-    name: jensazureagentpool
+    pool:
+      name: jensazureagentpool
     steps:
     - task: CmdLine@2
       displayName: 'Install Databricks CLI v2'
@@ -84,7 +84,7 @@ stages:
     - task: AzureCLI@2
       displayName: 'Call script to assign workspace to repo'
       inputs:
-        azureSubscription: 'adb-sc'
+        azureSubscription: 'ado-sc'
         scriptType: 'bash'
         scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
