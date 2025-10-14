@@ -3,106 +3,93 @@ name: PostMetastoreDeploy
 trigger:
   branches:
     include:
-      - devy        # <-- was "devy"
+      - devy
+
   paths:
     include:
       - '*'
 
 variables:
   - ${{ if or(eq(variables['Build.SourceBranchName'], 'dev'), eq(variables['System.PullRequest.TargetBranchName'], 'dev')) }}:
-    - group: vgdevadb360
-  - ${{ else }}:
+    - group: vgdevadb360 
+  - ${{ else }}: 
     - group: vgprdadb360
 
+
 stages:
-# ----------------- assign workspace to metastore -----------------
 - stage: s_assignmetastore
   displayName: 'assign workspace to metastore'
   jobs:
   - job: j_assignmetastore
     displayName: 'job assign workspace to metastore'
-    pool:
-      name: jensazureagentpool
+  pool:
+    name: jensazureagentpool
     steps:
-    - checkout: self
+    # - task: CmdLine@2
+    #   displayName: 'Install Databricks CLI v2'
+    #   inputs:
+    #     script: |
+    #       set -euxo pipefail
+    #       echo "Installing Databricks CLI to ~/.local/bin..."
+    #       mkdir -p ~/.local/bin
+    #       export PATH="$HOME/.local/bin:$PATH"
+
+    #       # Download & install CLI locally (not system-wide)
+    #       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
+
+    #       echo "Databricks CLI version:"
+    #       databricks version || echo "Databricks not found"
 
     - task: CmdLine@2
       displayName: 'Prereqs (unzip)'
       inputs:
-        script: |
+        script: |          
           set -eux
-          if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y unzip
-          elif command -v yum >/dev/null 2>&1; then
-            sudo yum install -y unzip
-          elif command -v zypper >/dev/null 2>&1; then
-            sudo zypper install -y unzip
-          else
-            echo "No supported pkg manager found"; exit 1
-          fi
-
-    # - task: CmdLine@2
-    #   displayName: 'Install Databricks CLI v2 (sudo)'
-    #   inputs:
-    #     script: |
-    #       set -euxo pipefail
-    #       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo bash
-    #       echo "##vso[task.prependpath]/usr/local/bin"
-    #       databricks version
-
+          # normalize all helper scripts to LF to avoid \r issues
+          find ./iac-adb-360/helpers -type f -name "*.sh" -print0 | xargs -0 sed -i 's/\r$//'
+        displayName: 'Normalize line endings (CRLF -> LF)'
+        
     - task: AzureCLI@2
       displayName: 'Call script assign workspace to metastore'
       inputs:
-        azureSubscription: 'ado-sc'
+        azureSubscription: 'adb-sc'
         scriptType: 'bash'
         scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename)'
 
-# ----------------- assign repository to spn -----------------
 - stage: s_assignrepo
   displayName: 'assign repository to spn'
   jobs:
   - job: j_assignrepo
-    displayName: 'job assign repository to spn'
-    pool:
-      name: jensazureagentpool
+    displayName: 'Job assign repository to spn'
+  pool:
+    name: jensazureagentpool
     steps:
-    - checkout: self
+    - task: CmdLine@2
+      displayName: 'Install Databricks CLI v2'
+      inputs:
+        script: |
+          set -euxo pipefail
+          echo "Installing Databricks CLI to ~/.local/bin..."
+          mkdir -p ~/.local/bin
+          export PATH="$HOME/.local/bin:$PATH"
 
-    # - task: CmdLine@2
-    #   displayName: 'Prereqs (unzip)'
-    #   inputs:
-    #     script: |
-    #       set -eux
-    #       if command -v apt-get >/dev/null 2>&1; then
-    #         sudo apt-get update
-    #         sudo apt-get install -y unzip
-    #       elif command -v yum >/dev/null 2>&1; then
-    #         sudo yum install -y unzip
-    #       elif command -v zypper >/dev/null 2>&1; then
-    #         sudo zypper install -y unzip
-    #       else
-    #         echo "No supported pkg manager found"; exit 1
-    #       fi
-    # - task: CmdLine@2
-    #   displayName: 'Install Databricks CLI v2 (sudo)'
-    #   inputs:
-    #     script: |
-    #       set -euxo pipefail
-    #       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo bash
-    #       echo "##vso[task.prependpath]/usr/local/bin"
-    #       databricks version
+          # Download & install CLI locally (not system-wide)
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
+
+          echo "Databricks CLI version:"
+          databricks version || echo "Databricks not found"
 
     - task: AzureCLI@2
-      displayName: 'Call script: attach to repo (GitHub)'
+      displayName: 'Call script to assign workspace to repo'
       inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: scriptPath
+        azureSubscription: 'adb-sc'
+        scriptType: 'bash'
+        scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(repourl) $(ghuser) $(ghpat)'
+
 
 # - stage: s_createcluster
 #   displayName: 'create the cluster'
