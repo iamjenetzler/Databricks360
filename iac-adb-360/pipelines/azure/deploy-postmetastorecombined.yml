@@ -16,7 +16,7 @@ variables:
     - group: vgprdadb360
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: jensazureagentpool
 
 stages:
 
@@ -29,8 +29,14 @@ stages:
       name: jensazureagentpool
     steps:
       - script: |
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-        displayName: 'Install Databricks CLI'
+          if ! command -v databricks &> /dev/null; then
+            echo "Databricks CLI not found. Installing..."
+            curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+          else
+            echo "Databricks CLI already installed. Skipping installation."
+          fi
+        displayName: 'Check and Install Databricks CLI'
+
 
       - task: AzureCLI@2
         displayName: 'Call script to assign workspace to repo'
