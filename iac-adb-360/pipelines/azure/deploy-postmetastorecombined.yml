@@ -31,9 +31,9 @@ stages:
       name: jensazureagentpool
       steps:
 
-      - script: |
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-        displayName: Install databricks cli
+      # - script: |
+      #     curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+      #   displayName: Install databricks cli
 
       - task: AzureCLI@2
         displayName: 'Call script to assign workspace to repo'
