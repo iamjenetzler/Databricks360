@@ -4,15 +4,17 @@ trigger:
   branches:
     include:
       - devy
+
   paths:
     include:
       - '*'
 
 variables:
   - ${{ if or(eq(variables['Build.SourceBranchName'], 'dev'), eq(variables['System.PullRequest.TargetBranchName'], 'dev')) }}:
-    - group: vgdevadb360
-  - ${{ else }}:
+    - group: vgdevadb360 
+  - ${{ else }}: 
     - group: vgprdadb360
+
 
 stages:
 - stage: s_assignmetastore
@@ -23,69 +25,63 @@ stages:
     pool:
       name: jensazureagentpool
     steps:
-    - checkout: self
-      clean: true
-
-    # Install CLI if you still need it; otherwise remove this block
-    # - task: CmdLine@2
-    #   displayName: 'Install Databricks CLI v2'
-    #   inputs:
-    #     script: |
-    #       set -euxo pipefail
-    #       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
-    #       databricks version || true
+    - task: CmdLine@2
+      inputs:
+        script: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+      displayName: 'Install Databricks CLI v 2'
 
     - task: AzureCLI@2
       displayName: 'Call script assign workspace to metastore'
       inputs:
         azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: scriptPath
-        scriptPath: '$(Build.SourcesDirectory)/iac-adb-360/helpers/attach-workspace-to-metastore.sh'
+        scriptType: 'bash'
+        scriptLocation: 'scriptPath'
+        scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename)'
-        addSpnToEnvironment: true
-      env:
-        # pass secrets via variables/variable groups if needed
-        # CLIENT_SECRET: $(clientSecret)
-        # GH_PAT: $(ghpat)
-        SYSTEM_DEBUG: true
-    - script: |
-        set -euxo pipefail
-        echo "Ensuring script is executable..."
-        chmod +x "$(Build.SourcesDirectory)/iac-adb-360/helpers/attach-workspace-to-metastore.sh"
-      displayName: 'chmod metastore script'
 
 - stage: s_assignrepo
   displayName: 'assign repository to spn'
-  dependsOn: s_assignmetastore
   jobs:
   - job: j_assignrepo
     displayName: 'Job assign repository to spn'
     pool:
       name: jensazureagentpool
     steps:
-    - checkout: self
-      clean: true
-
-    # - task: CmdLine@2
-    #   displayName: 'Install Databricks CLI v2'
-    #   inputs:
-    #     script: |
-    #       set -euxo pipefail
-    #       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
-    #       databricks version || true
+    - task: CmdLine@2
+      inputs:
+        script: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+      displayName: 'Install Databricks CLI v 2'
 
     - task: AzureCLI@2
       displayName: 'Call script to assign workspace to repo'
       inputs:
         azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: scriptPath
-        scriptPath: '$(Build.SourcesDirectory)/iac-adb-360/helpers/attach-to-repo-github.sh'
+        scriptType: 'bash'
+        scriptLocation: 'scriptPath'
+        scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(repourl) $(ghuser) $(ghpat)'
-        addSpnToEnvironment: true
-    - script: |
-        set -euxo pipefail
-        echo "Ensuring script is executable..."
-        chmod +x "$(Build.SourcesDirectory)/iac-adb-360/helpers/attach-to-repo-github.sh"
-      displayName: 'chmod repo script'
+
+
+# - stage: s_createcluster
+#   displayName: 'create the cluster'
+#   jobs:
+#   - job: j_createcluster
+#     displayName: 'Job creating the cluster'
+#     pool:
+#       vmImage: 'ubuntu-latest'
+#     steps:
+#     - task: CmdLine@2
+#       inputs:
+#         script: |
+#           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+#       displayName: 'Install Databricks CLI v 2'
+#     - task: AzureCLI@2
+#       displayName: 'Call script to create a cluster'
+#       inputs:
+#         azureSubscription: 'adb-sc'
+#         scriptType: 'bash'
+#         scriptLocation: 'scriptPath'
+#         scriptPath: './iac-adb-360/helpers/create-cluster.sh'
+#         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(clusterconf)'
