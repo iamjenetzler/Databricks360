@@ -91,6 +91,19 @@ stages:
         databricks version
       displayName: 'Install Databricks CLI v2 (user dir)'
 
+    - script: |
+          set -euo pipefail
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          if ! command -v az >/dev/null 2>&1; then
+            echo "Azure CLI not found. Installing..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            az config set extension.dynamic_install_allow_preview=true
+
+          else
+            echo "Azure CLI already installed. Skipping."
+          fi
+      displayName: 'Check & install Azure CLI'
+      
     - task: AzureCLI@2
       displayName: 'Create catalog+schema (separate storage)'
       inputs:
