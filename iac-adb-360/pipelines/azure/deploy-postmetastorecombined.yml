@@ -89,14 +89,25 @@ stages:
       inputs:
         script: |
           set -euo pipefail
-    
           echo "Checking for existing Azure CLI installation..."
           if command -v az >/dev/null 2>&1; then
             echo "Azure CLI found. Uninstalling..."
             sudo apt-get remove -y azure-cli
           else
-            echo "Azure CLI not found. Proceeding with fresh install
-    
+            echo "Azure CLI not found. Proceeding with fresh install..."
+          fi
+
+          echo "Installing Azure CLI..."
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          echo "Verifying installation..."
+          if command -v az >/dev/null 2>&1; then
+            echo "Azure CLI installed successfully."
+            az config set extension.dynamic_install_allow_preview=true
+          else
+            echo "Azure CLI installation failed."
+            exit 1
+          fi
+      
     - task: AzureCLI@2
       displayName: 'Create catalog+schema (separate storage)'
       inputs:
