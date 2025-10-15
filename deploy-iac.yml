@@ -107,8 +107,7 @@ stages:
         bicep build ./iac-adb-360/main.bicep
       displayName: checking bicep syntax ...
 
-
-# --- Validate against Azure (CLI pinned to 2.72.0 via venv) ---
+# --- Validate against Azure (latest CLI) ---
 - stage: validatebicep
   displayName: Validate Bicep against Azure
   dependsOn: checkbicep
@@ -124,65 +123,23 @@ stages:
           set -euo pipefail
           if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get update -y
-            # venv + pip + common build deps
             sudo apt-get install -y python3-venv python3-pip build-essential libffi-dev libssl-dev
-          elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y python3 python3-pip python3-virtualenv gcc gcc-c++ make libffi-devel openssl-devel
-          elif command -v yum >/dev/null 2>&1; then
-            sudo yum install -y python3 python3-pip python3-virtualenv gcc gcc-c++ make libffi-devel openssl-devel
-          else
-            echo "Unsupported distro: need python venv tooling installed." >&2
-            exit 1
           fi
-          python3 -V
-          python3 -m pip --version || true
 
-    - task: Bash@3
-      displayName: Create venv and install Azure CLI 2.72.0
+    - task: PowerShell@2
+      displayName: Validate via PowerShell
       inputs:
         targetType: inline
         script: |
-          set -euo pipefail
-          python3 -m venv .az272
-          . ./.az272/bin/activate
-          pip install --upgrade pip
-          pip install "azure-cli==2.72.0"
-          az version
-
-    - task: AzureCLI@2
-      displayName: Validate Bicep (az 2.72.0)
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-          . ./.az272/bin/activate
-          az deployment group validate \
-            --resource-group "$(resourcegroup)" \
-            --template-file ./iac-adb-360/main.bicep \
-            --parameters baseName="$(baseName)" env="$(env)" \
-            --only-show-errors
-
-    - task: AzureCLI@2
-      displayName: Dump RG Activity Log (last 2h, Validate failures)
-      condition: failed()
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-          . ./.az272/bin/activate
-          az monitor activity-log list \
-            --resource-group "$(resourcegroup)" \
-            --status Failed --offset 2h --max-events 10 \
-            --query "[?contains(operationName.localizedValue,'Validate')].[eventTimestamp,operationName.localizedValue,properties.statusCode,properties.statusMessage]" \
-            -o jsonc || true
+          Install-Module Az.Resources -Force -Scope CurrentUser
+          Connect-AzAccount -Identity
+          Test-AzResourceGroupDeployment `
+            -ResourceGroupName "$(resourcegroup)" `
+            -TemplateFile "./iac-adb-360/main.bicep" `
+            -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" } `
+            -Verbose
 
 
-
-    # Helpful: if validation fails, print server-side error from Activity Log
     - task: AzureCLI@2
       displayName: Dump RG Activity Log (last 2h, Validate failures)
       condition: failed()
@@ -193,7 +150,6 @@ stages:
         inlineScript: |
           set -euo pipefail
           echo "Fetching recent failed 'Validate' operations from Activity Log..."
-          . ./.az272/bin/activate
           az monitor activity-log list \
             --resource-group "$(resourcegroup)" \
             --status Failed \

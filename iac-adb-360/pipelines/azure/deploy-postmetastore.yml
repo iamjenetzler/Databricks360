@@ -2,21 +2,20 @@ name: PostMetastoreDeploy
 
 trigger:
   branches:
-    include:
-      - devy
-
+    include: [devy]
   paths:
-    include:
-      - '*'
+    include: ['*']
 
 variables:
   - ${{ if or(eq(variables['Build.SourceBranchName'], 'dev'), eq(variables['System.PullRequest.TargetBranchName'], 'dev')) }}:
-    - group: vgdevadb360 
-  - ${{ else }}: 
+    - group: vgdevadb360
+  - ${{ else }}:
     - group: vgprdadb360
 
-
 stages:
+# =======================
+# Stage 1: Attach workspace to metastore
+# =======================
 - stage: s_assignmetastore
   displayName: 'assign workspace to metastore'
   jobs:
@@ -49,13 +48,16 @@ stages:
         UC_REGION: westus2                                  # must match workspace region
         UC_STORAGE_ROOT: abfss://uc-root@<acct>.dfs.core.windows.net/
 
+# =======================
+# Stage 2: Attach repo to workspace
+# =======================
 - stage: s_assignrepo
   displayName: 'assign repository to spn'
   jobs:
   - job: j_assignrepo
-    displayName: 'Job assign repository to spn'
-  pool:
-    name: jensazureagentpool
+    displayName: 'job assign repository to spn'
+    pool:
+      name: jensazureagentpool
     steps:
     - task: CmdLine@2
       displayName: 'Install Databricks CLI v2 (sudo)'
@@ -71,34 +73,26 @@ stages:
           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
           databricks version
 
+    # Optional: ensure jq here too if your repo script uses it
+    - script: |
+        set -euo pipefail
+        if ! command -v jq >/dev/null 2>&1; then
+          echo "jq not found. Installing..."
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+        else
+          echo "jq already installed. Skipping."
+        fi
+        jq --version || true
+      displayName: 'Check & install jq'
+
+    # Run your repo attach script
     - task: AzureCLI@2
       displayName: 'Call script to assign workspace to repo'
       inputs:
-        azureSubscription: 'adb-sc'
+        azureSubscription: 'ado-sc'
         scriptType: 'bash'
         scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(repourl) $(ghuser) $(ghpat)'
-
-
-# - stage: s_createcluster
-#   displayName: 'create the cluster'
-#   jobs:
-#   - job: j_createcluster
-#     displayName: 'Job creating the cluster'
-#     pool:
-#       name: 'ubuntu-latest'
-#     steps:
-#     - task: CmdLine@2
-#       inputs:
-#         script: |
-#           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-#       displayName: 'Install Databricks CLI v 2'
-#     - task: AzureCLI@2
-#       displayName: 'Call script to create a cluster'
-#       inputs:
-#         azureSubscription: 'adb-sc'
-#         scriptType: 'bash'
-#         scriptLocation: 'scriptPath'
-#         scriptPath: './iac-adb-360/helpers/create-cluster.sh'
-#         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(clusterconf)'
+        failOnStandardError: false

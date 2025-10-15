@@ -28,19 +28,7 @@ stages:
     pool:
       name: jensazureagentpool
     steps:
-    - checkout: self
-          
-    - script: |
-        set -euo pipefail
-        if command -v databricks >/dev/null 2>&1; then
-          echo "Databricks CLI already present at: $(command -v databricks)"
-          databricks version || true
-          exit 0
-        fi
-        echo "Installing Databricks CLI..."
-        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-        databricks version
-      displayName: 'Ensure Databricks CLI'
+    - checkout: self   
 
     - task: CmdLine@2
       displayName: 'Prereqs (unzip)'

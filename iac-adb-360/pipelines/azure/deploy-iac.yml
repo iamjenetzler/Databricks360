@@ -111,7 +111,7 @@ stages:
       displayName: checking bicep syntax ...
 
 
-# --- Validate against Azure (CLI pinned to 2.72.0 via venv) ---
+## --- Validate against Azure (latest CLI) ---
 - stage: validatebicep
   displayName: Validate Bicep against Azure
   dependsOn: checkbicep
@@ -127,65 +127,51 @@ stages:
           set -euo pipefail
           if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get update -y
-            # venv + pip + common build deps
             sudo apt-get install -y python3-venv python3-pip build-essential libffi-dev libssl-dev
-          elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y python3 python3-pip python3-virtualenv gcc gcc-c++ make libffi-devel openssl-devel
-          elif command -v yum >/dev/null 2>&1; then
-            sudo yum install -y python3 python3-pip python3-virtualenv gcc gcc-c++ make libffi-devel openssl-devel
-          else
-            echo "Unsupported distro: need python venv tooling installed." >&2
-            exit 1
           fi
-          python3 -V
-          python3 -m pip --version || true
 
     - task: Bash@3
-      displayName: Create venv and install Azure CLI 2.72.0
+      displayName: Install PowerShell Core (pwsh)
       inputs:
         targetType: inline
         script: |
           set -euo pipefail
-          python3 -m venv .az272
-          . ./.az272/bin/activate
-          pip install --upgrade pip
-          pip install "azure-cli==2.72.0"
-          az version
+          echo "Installing PowerShell Core..."
+          wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
+          pwsh --version
 
-    - task: AzureCLI@2
-      displayName: Validate Bicep (az 2.72.0)
+    - task: Bash@3
+      displayName: Install bicep globally for pwsh
       inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
+        targetType: inline
+        script: |
           set -euo pipefail
-          . ./.az272/bin/activate
-          az deployment group validate \
-            --resource-group "$(resourcegroup)" \
-            --template-file ./iac-adb-360/main.bicep \
-            --parameters baseName="$(baseName)" env="$(env)" \
-            --only-show-errors
+          echo "Installing bicep..."
+          curl -fsSL https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64 -o bicep
+          chmod +x bicep
+          sudo mv bicep /usr/local/bin/bicep
+          which bicep && bicep --version
 
-    - task: AzureCLI@2
-      displayName: Dump RG Activity Log (last 2h, Validate failures)
-      condition: failed()
+
+    - task: PowerShell@2
+      displayName: Validate Bicep via PowerShell
       inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-          . ./.az272/bin/activate
-          az monitor activity-log list \
-            --resource-group "$(resourcegroup)" \
-            --status Failed --offset 2h --max-events 10 \
-            --query "[?contains(operationName.localizedValue,'Validate')].[eventTimestamp,operationName.localizedValue,properties.statusCode,properties.statusMessage]" \
-            -o jsonc || true
+        targetType: inline
+        script: |
+          Install-Module Az.Resources -Force -Scope CurrentUser
+          Connect-AzAccount -Identity
+          Test-AzResourceGroupDeployment `
+            -ResourceGroupName "$(resourcegroup)" `
+            -TemplateFile "./iac-adb-360/main.bicep" `
+            -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" } `
+            -Verbose
 
 
 
-    # Helpful: if validation fails, print server-side error from Activity Log
+
     - task: AzureCLI@2
       displayName: Dump RG Activity Log (last 2h, Validate failures)
       condition: failed()
@@ -195,8 +181,8 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -euo pipefail
+          echo "Running What-If validation..."
           echo "Fetching recent failed 'Validate' operations from Activity Log..."
-          . ./.az272/bin/activate
           az monitor activity-log list \
             --resource-group "$(resourcegroup)" \
             --status Failed \
@@ -204,6 +190,7 @@ stages:
             --max-events 10 \
             --query "[?contains(operationName.localizedValue, 'Validate')].[eventTimestamp,operationName.localizedValue,properties.statusCode,properties.statusMessage]" \
             -o jsonc || true
+
 
 
 - stage: Deploy
@@ -217,9 +204,74 @@ stages:
           deploy:
             steps:
               - checkout: self
+
+              # 1) Compile Bicep to JSON first
               - task: AzureCLI@2
+                displayName: Compile Bicep to JSON
                 inputs:
                   azureSubscription: 'ado-sc'
-                  scriptType: 'bash'
-                  scriptLocation: 'inlineScript'
-                  inlineScript: 'az deployment group create --resource-group $(resourcegroup) --template-file ./iac-adb-360/main.bicep --parameters baseName=$(baseName) env=$(env)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -euo pipefail
+                    az bicep install
+                    # Compile with compatible flags
+                    if az bicep build --help | grep -q -- "--outfile"; then
+                      az bicep build --file ./iac-adb-360/main.bicep --outfile ./iac-adb-360/main.json
+                    else
+                      az bicep build --file ./iac-adb-360/main.bicep --stdout > ./iac-adb-360/main.json
+                    fi
+
+              - task: AzureCLI@2
+                displayName: Permission probe via ARM REST (validate) with jq
+                inputs:
+                  azureSubscription: 'ado-sc'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -euo pipefail
+                    sudo apt-get update -y && sudo apt-get install -y jq >/dev/null
+
+                    SUB_ID="$(az account show --query id -o tsv)"
+                    RG="$(resourcegroup)"
+                    URI="https://management.azure.com/subscriptions/${SUB_ID}/resourcegroups/${RG}/providers/Microsoft.Resources/deployments/rbac-probe/validate?api-version=2021-04-01"
+
+                    cat >/tmp/emptyTemplate.json <<'TJSON'
+                    {
+                      "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                      "contentVersion": "1.0.0.0",
+                      "parameters": {},
+                      "resources": []
+                    }
+                    TJSON
+
+                    jq -n --argfile tmpl /tmp/emptyTemplate.json '{
+                      "properties": {
+                        "mode": "Incremental",
+                        "template": $tmpl,
+                        "parameters": {}
+                      }
+                    }' >/tmp/validateBody.json
+
+                    echo "POST ${URI}"
+                    az rest --method post --uri "$URI" \
+                      --headers "Content-Type=application/json" \
+                      --body @/tmp/validateBody.json -o jsonc
+
+
+
+
+              # 2) Deploy with AzurePowerShell@5 (auto-auth with ado-sc)
+              - task: AzurePowerShell@5
+                displayName: Deploy via AzurePowerShell
+                inputs:
+                  azureSubscription: 'ado-sc'
+                  ScriptType: 'InlineScript'
+                  Inline: |
+                    Install-Module Az.Resources -Force -Scope CurrentUser
+                    New-AzResourceGroupDeployment `
+                      -ResourceGroupName "$(resourcegroup)" `
+                      -TemplateFile "./iac-adb-360/main.json" `
+                      -TemplateParameterObject @{ baseName = "$(baseName)"; env = "$(env)" } `
+                      -Mode Incremental -Verbose
+                  azurePowerShellVersion: 'LatestVersion'

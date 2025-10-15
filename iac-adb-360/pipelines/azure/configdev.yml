@@ -1,5 +1,5 @@
 variables:
-  baseName: adb360-44281721013-dev
+  baseName: adb360-44281721013
   env: dev
   resourcegroup: rg-wus2-$(baseName)-$(env)
   location: westus2
