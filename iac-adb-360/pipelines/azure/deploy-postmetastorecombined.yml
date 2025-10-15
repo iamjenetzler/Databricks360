@@ -89,12 +89,16 @@ stages:
       inputs:
         script: |
           set -euo pipefail
+<<<<<<< HEAD
     
+=======
+>>>>>>> 0d88a61b535033ec234e2c596b695ad0c016769b
           echo "Checking for existing Azure CLI installation..."
           if command -v az >/dev/null 2>&1; then
             echo "Azure CLI found. Uninstalling..."
             sudo apt-get remove -y azure-cli
           else
+<<<<<<< HEAD
             echo "Azure CLI not found. Proceeding with fresh install
     
     - task: AzureCLI@2
@@ -106,6 +110,31 @@ stages:
         scriptPath: './iac-adb-360/helpers/create-ms-catalognschema-sepstor.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(catalogstorageaccountname) $(credname) $(accessconnectorid)'
 
+=======
+            echo "Azure CLI not found. Proceeding with fresh install..."
+          fi
+
+          echo "Installing Azure CLI..."
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          echo "Verifying installation..."
+          if command -v az >/dev/null 2>&1; then
+            echo "Azure CLI installed successfully."
+            az config set extension.dynamic_install_allow_preview=true
+          else
+            echo "Azure CLI installation failed."
+            exit 1
+          fi
+      
+    - task: AzureCLI@2
+      displayName: 'Create catalog+schema (separate storage)'
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: scriptPath
+        scriptPath: './iac-adb-360/helpers/create-ms-catalognschema-sepstor.sh'
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(catalogstorageaccountname) $(credname) $(accessconnectorid)'
+
+>>>>>>> 0d88a61b535033ec234e2c596b695ad0c016769b
     - task: AzureCLI@2
       displayName: 'Create external location'
       inputs:
@@ -113,4 +142,8 @@ stages:
         scriptType: bash
         scriptLocation: scriptPath
         scriptPath: './iac-adb-360/helpers/create-ms-externallocation.sh'
+<<<<<<< HEAD
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(bronzestorageaccountname) $(credname) $(accessconnectorid)'
+=======
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(bronzestorageaccountname) $(credname) $(accessconnectorid)'
+>>>>>>> 0d88a61b535033ec234e2c596b695ad0c016769b
