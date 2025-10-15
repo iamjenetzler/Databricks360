@@ -59,6 +59,15 @@ stages:
           echo "Installing Databricks CLI..."
           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
           databricks version
+
+    - task: AzureCLI@2
+      displayName: 'Call script to assign workspace to repo'
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: 'bash'
+        scriptLocation: 'scriptPath'
+        scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(repourl) $(ghuser) $(ghpat)'
       
 # ----------------- create catalog + schema -----------------
 - stage: s_createcatalogandschema
