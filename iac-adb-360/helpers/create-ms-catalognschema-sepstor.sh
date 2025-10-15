@@ -21,6 +21,7 @@ credname=$8
 echo "$credname as parm 8"
 accessconnectorid=$9
 echo "$accessconnectorid as parm 9"
+echo whoami
 
 # variables
 extlocationname="catextloc$env"
