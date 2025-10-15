@@ -15,9 +15,9 @@ pr:
 
 variables:
   - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dev') }}: 
-    - template: ./configdev.yml
+    - template: "iac-adb-360/pipelines/azure/configdev.yml" 
   - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}: 
-    - template: ./configprd.yml
+    - template: "iac-adb-360/pipelines/azure/configprd.yml" 
 
 
 pool:

@@ -2,7 +2,7 @@
 
 
 # parameters
-resourcegroupname=$1 #'rg-wus3-adbmidp0912-dev'
+resourcegroupname=$1 #'rg-wus3-adbmidp0912-prd'
 echo "$resourcegroupname as parm 1"
 tenantid=$2 #'12ce7121-18c7-4841-98f9-3b26fc8af34f'
 echo "$tenantid as parm 2"
@@ -21,6 +21,7 @@ credname=$8
 echo "$credname as parm 8"
 accessconnectorid=$9
 echo "$accessconnectorid as parm 9"
+whoami
 
 # variables
 extlocationname="catextloc$env"
@@ -76,7 +77,7 @@ then
     # sp needs to be the owner of the storage credentials
     echo "external location created: $extloc"
     # add all privileges to devcat-admins
-    databricks grants update external_location $extlocationname --json '{ "changes": [{"group": "devcat-admins", "add" : ["ALL_PRIVILEGES"]}] }'
+    databricks grants update external_location $extlocationname --json '{ "changes": [{"principal": "admin@MngEnvMCAP479318.onmicrosoft.com", "add" : ["ALL_PRIVILEGES"]}] }'
 else
     echo "external location $extlocationname found, skipping creation"
 fi
@@ -93,7 +94,18 @@ then
     echo "catalog $catname not found, creating it"
     cat=$(databricks catalogs create  $catname --storage-root $extlocationurl --output json)
     # granting devcat-admins all privileges
-    databricks grants update catalog $catname --json '{ "changes": [{"group": "devcat-admins", "add" : ["ALL_PRIVILEGES"]}] }'
+    databricks grants update catalog $catname --json '{ "changes": [{"principal": "admin@MngEnvMCAP479318.onmicrosoft.com", "add" : ["ALL_PRIVILEGES"]}] }'
+
+    
+    databricks grants update catalog $catname --json '{
+    "changes": [
+        {
+        "principal": "credname",
+        "add": ["ALL_PRIVILEGES"]
+        }
+    ]
+    }'
+
     
     echo "creating schema $schemaname"
     databricks schemas create  $schemaname $catname --output json

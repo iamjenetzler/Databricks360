@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-resourcegroupname=$1 #'rg-wus3-adbmidp0912-prd'
+resourcegroupname='rg-wus2-adb360-44281721013-prd'
 echo "$resourcegroupname as parm 1"
 tenantid=$2 #'12ce7121-18c7-4841-98f9-3b26fc8af34f'
 echo "$tenantid as parm 2"
