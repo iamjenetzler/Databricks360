@@ -76,7 +76,7 @@ then
     # sp needs to be the owner of the storage credentials
     echo "external location created: $extloc"
     # add all privileges to devcat-admins
-    databricks grants update external_location $extlocationname --json '{ "changes": [{"principal": "devcat-admins", "add" : ["ALL_PRIVILEGES"]}] }'
+    databricks grants update external_location $extlocationname --json '{ "changes": [{"principal": "credname", "add" : ["ALL_PRIVILEGES"]}] }'
 else
     echo "external location $extlocationname found, skipping creation"
 fi
@@ -99,7 +99,7 @@ then
     databricks grants update catalog $catname --json '{
     "changes": [
         {
-        "principal": "devcat-admins",
+        "principal": "credname",
         "add": ["ALL_PRIVILEGES"]
         }
     ]
