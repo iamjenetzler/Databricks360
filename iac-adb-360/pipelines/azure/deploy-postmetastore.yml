@@ -21,64 +21,20 @@ stages:
   jobs:
   - job: j_assignmetastore
     displayName: 'job assign workspace to metastore'
-    pool:
-      name: jensazureagentpool
-    steps:
-    # Ensure Azure CLI (self-hosted agent)
+  pool:
+    name: jensazureagentpool
+    steps:  
+    # 1) Ensure Azure CLI is present
     - script: |
-          set -euo pipefail
+        set -euo pipefail
+        if ! command -v az >/dev/null 2>&1; then
+          echo "Azure CLI not found. Installing..."
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          if ! command -v az >/dev/null 2>&1; then
-            echo "Azure CLI not found. Installing..."
-            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-            az config set extension.dynamic_install_allow_preview=true
-
-          else
-            echo "Azure CLI already installed. Skipping."
-          fi
+        else
+          echo "Azure CLI already installed. Skipping."
+        fi
       displayName: 'Check & install Azure CLI'
 
-    # Ensure jq (script relies on it)
-    - script: |
-        set -euo pipefail
-        if ! command -v jq >/dev/null 2>&1; then
-          echo "jq not found. Installing..."
-          sudo apt-get update -y
-          sudo apt-get install -y jq
-        else
-          echo "jq already installed. Skipping."
-        fi
-        jq --version || true
-      displayName: 'Check & install jq'
-
-    # Ensure Databricks CLI (system-wide)
-    - script: |
-        set -euo pipefail
-        if command -v databricks >/dev/null 2>&1; then
-          echo "Databricks CLI already present at: $(command -v databricks)"
-          databricks version || true
-          exit 0
-        fi
-        echo "Installing Databricks CLI..."
-        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-        databricks version
-      displayName: 'Ensure Databricks CLI'
-
-    # Prep az extension (Databricks) & allow preview w/out prompt
-    - task: AzureCLI@2
-      displayName: 'Prep az extensions (Databricks)'
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          set -euo pipefail
-          az config set extension.use_dynamic_install=yes_without_prompt
-          az config set extension.dynamic_install_allow_preview=true
-          az extension add --name databricks --upgrade || az extension update --name databricks
-          az extension list -o table
-
-    # Run your attach script
     - task: AzureCLI@2
       displayName: 'Attach workspace to metastore (account-scoped)'
       inputs:
@@ -87,11 +43,10 @@ stages:
         scriptLocation: 'scriptPath'
         scriptPath: './iac-adb-360/helpers/attach-workspace-to-metastore.sh'
         arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename)'
-        failOnStandardError: false   # az prints harmless warnings to stderr
       env:
-        DATABRICKS_ACCOUNT_ID: $(accountId)
-        UC_REGION: westus2
-        UC_STORAGE_ROOT: $(ucStorageRoot)   # define this in your variable group
+        DATABRICKS_ACCOUNT_ID: $(accountId)                 # the Databricks Account ID
+        UC_REGION: westus2                                  # must match workspace region
+        UC_STORAGE_ROOT: abfss://uc-root@<acct>.dfs.core.windows.net/
 
 # =======================
 # Stage 2: Attach repo to workspace
@@ -104,30 +59,19 @@ stages:
     pool:
       name: jensazureagentpool
     steps:
-    # Ensure Azure CLI (self-hosted agent)
-    - script: |
-        set -euo pipefail
-        if ! command -v az >/dev/null 2>&1; then
-          echo "Azure CLI not found. Installing..."
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-        else
-          echo "Azure CLI already installed. Skipping."
-        fi
-        az version | head -n1 || true
-      displayName: 'Check & install Azure CLI'
-
-    # Ensure Databricks CLI (system-wide)
-    - script: |
-        set -euo pipefail
-        if command -v databricks >/dev/null 2>&1; then
-          echo "Databricks CLI already present at: $(command -v databricks)"
-          databricks version || true
-          exit 0
-        fi
-        echo "Installing Databricks CLI..."
-        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-        databricks version
-      displayName: 'Ensure Databricks CLI'
+    - task: CmdLine@2
+      displayName: 'Install Databricks CLI v2 (sudo)'
+      inputs:
+        script: |
+          set -euo pipefail
+          if command -v databricks >/dev/null 2>&1; then
+            echo "Databricks CLI already present at: $(command -v databricks)"
+            databricks version || true
+            exit 0
+          fi
+          echo "Installing Databricks CLI..."
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+          databricks version
 
     # Optional: ensure jq here too if your repo script uses it
     - script: |
