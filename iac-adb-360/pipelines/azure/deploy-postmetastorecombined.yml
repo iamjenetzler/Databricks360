@@ -94,23 +94,23 @@ stages:
         if command -v az >/dev/null 2>&1; then
           echo "Azure CLI found. Uninstalling..."
           sudo apt-get remove -y azure-cli
-      else
-        echo "Azure CLI not found. Proceeding with fresh install
+        else
+          echo "Azure CLI not found. Proceeding with fresh install
   
-    - task: AzureCLI@2
-      displayName: 'Create catalog+schema (separate storage)'
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: scriptPath
-        scriptPath: './iac-adb-360/helpers/create-ms-catalognschema-sepstor.sh'
-        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(catalogstorageaccountname) $(credname) $(accessconnectorid)'
+  - task: AzureCLI@2
+    displayName: 'Create catalog+schema (separate storage)'
+    inputs:
+      azureSubscription: 'ado-sc'
+      scriptType: bash
+      scriptLocation: scriptPath
+      scriptPath: './iac-adb-360/helpers/create-ms-catalognschema-sepstor.sh'
+      arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(catalogstorageaccountname) $(credname) $(accessconnectorid)'
 
-    - task: AzureCLI@2
-      displayName: 'Create external location'
-      inputs:
-        azureSubscription: 'ado-sc'
-        scriptType: bash
-        scriptLocation: scriptPath
-        scriptPath: './iac-adb-360/helpers/create-ms-externallocation.sh'
-        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(bronzestorageaccountname) $(credname) $(accessconnectorid)'
+  - task: AzureCLI@2
+    displayName: 'Create external location'
+    inputs:
+      azureSubscription: 'ado-sc'
+      scriptType: bash
+      scriptLocation: scriptPath
+      scriptPath: './iac-adb-360/helpers/create-ms-externallocation.sh'
+      arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(bronzestorageaccountname) $(credname) $(accessconnectorid)'
