@@ -4,13 +4,12 @@ trigger:
   branches:
     include:
       - devy
-
   paths:
     include:
       - '*'
 
 variables:
-  - ${{ if or(eq(variables['Build.SourceBranchName'], 'dev'), eq(variables['System.PullRequest.TargetBranchName'], 'dev')) }}:
+  - ${{ if or(eq(variables['Build.SourceBranchName'], 'devy'), eq(variables['System.PullRequest.TargetBranchName'], 'devy')) }}:
     - group: vgdevadb360
   - ${{ else }}:
     - group: vgprdadb360
@@ -20,6 +19,7 @@ pool:
 
 stages:
 
+# ----------------- assign repo -----------------
 - stage: s_assignrepo
   displayName: 'assign repository to spn'
   jobs:
@@ -28,60 +28,96 @@ stages:
     pool:
       name: jensazureagentpool
     steps:
-      - script: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          if ! command -v databricks &> /dev/null; then
-            echo "Databricks CLI not found. Installing..."
-            curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
-          else
-            echo "Databricks CLI already installed. Skipping installation."
-          fi
-        displayName: 'Check and Install Databricks CLI'
-
-      - script: |
-          set -euo pipefail
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+    - checkout: self
           
-          if ! command -v az >/dev/null 2>&1; then
-            echo "Azure CLI not found. Installing..."
-            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-            az config set extension.dynamic_install_allow_preview=true
+    - script: |
+        set -euo pipefail
+        if command -v databricks >/dev/null 2>&1; then
+          echo "Databricks CLI already present at: $(command -v databricks)"
+          databricks version || true
+          exit 0
+        fi
+        echo "Installing Databricks CLI..."
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+        databricks version
+      displayName: 'Ensure Databricks CLI'
+
+    - task: CmdLine@2
+      displayName: 'Prereqs (unzip)'
+      inputs:
+        script: |
+          set -eux
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y unzip
+          elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y unzip
+          elif command -v zypper >/dev/null 2>&1; then
+            sudo zypper install -y unzip
           else
-            echo "Azure CLI already installed. Skipping."
+            echo "No supported pkg manager found"; exit 1
           fi
-        displayName: 'Check & install Azure CLI'
 
-      - task: AzureCLI@2
-        displayName: 'Call script to assign workspace to repo'
-        inputs:
-          azureSubscription: 'ado-sc'
-          scriptType: 'bash'
-          scriptLocation: 'scriptPath'
-          scriptPath: './iac-adb-360/helpers/attach-to-repo-github.sh'
-          arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(repourl) $(ghuser) $(ghpat)'
-
+    - task: CmdLine@2
+      displayName: 'Install Databricks CLI v2 (sudo)'
+      inputs:
+        script: |
+          set -euo pipefail
+          if command -v databricks >/dev/null 2>&1; then
+            echo "Databricks CLI already present at: $(command -v databricks)"
+            databricks version || true
+            exit 0
+          fi
+          echo "Installing Databricks CLI..."
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sudo sh
+          databricks version
+      
+# ----------------- create catalog + schema -----------------
 - stage: s_createcatalogandschema
   displayName: 'create catalog and schema'
   jobs:
   - job: j_createcatalogandschema
-    displayName: 'Job create catalog and schema'
+    displayName: 'job create catalog and schema'
     pool:
       name: jensazureagentpool
     steps:
-      - task: AzureCLI@2
-        displayName: 'Call script to create catalog and schema with its own storage loc'
-        inputs:
-          azureSubscription: 'ado-sc'
-          scriptType: 'bash'
-          scriptLocation: 'scriptPath'
-          scriptPath: './iac-adb-360/helpers/create-ms-catalognschema-sepstor.sh'
-          arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(catalogstorageaccountname) $(credname) $(accessconnectorid)'
+    - checkout: self
 
-      - task: AzureCLI@2
-        displayName: 'Call script to create externallocation'
-        inputs:
-          azureSubscription: 'ado-sc'
-          scriptType: 'bash'
-          scriptLocation: 'scriptPath'
-          scriptPath: './iac-adb-360/helpers/create-ms-externallocation.sh'
-          arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(bronzestorageaccountname) $(credname) $(accessconnectorid)'
+    - script: |
+        set -euxo pipefail
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh \
+          | bash -s -- -d "$HOME/.local/bin"
+        echo "##vso[task.prependpath]$HOME/.local/bin"
+        databricks version
+      displayName: 'Install Databricks CLI v2 (user dir)'
+
+    - script: |
+          set -euo pipefail
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          if ! command -v az >/dev/null 2>&1; then
+            echo "Azure CLI not found. Installing..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            az config set extension.dynamic_install_allow_preview=true
+
+          else
+            echo "Azure CLI already installed. Skipping."
+          fi
+      displayName: 'Check & install Azure CLI'
+      
+    - task: AzureCLI@2
+      displayName: 'Create catalog+schema (separate storage)'
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: scriptPath
+        scriptPath: './iac-adb-360/helpers/create-ms-catalognschema-sepstor.sh'
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(catalogstorageaccountname) $(credname) $(accessconnectorid)'
+
+    - task: AzureCLI@2
+      displayName: 'Create external location'
+      inputs:
+        azureSubscription: 'ado-sc'
+        scriptType: bash
+        scriptLocation: scriptPath
+        scriptPath: './iac-adb-360/helpers/create-ms-externallocation.sh'
+        arguments: '$(resourceGroupName) $(tenantId) $(clientId) $(clientSecret) $(metastorename) $(env) $(bronzestorageaccountname) $(credname) $(accessconnectorid)'
