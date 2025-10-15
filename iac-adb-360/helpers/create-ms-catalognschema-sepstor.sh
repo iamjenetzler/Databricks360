@@ -76,7 +76,7 @@ then
     # sp needs to be the owner of the storage credentials
     echo "external location created: $extloc"
     # add all privileges to devcat-admins
-    databricks grants update external_location $extlocationname --json '{ "changes": [{"principal": "prdcreds", "add" : ["ALL_PRIVILEGES"]}] }'
+    databricks grants update external_location $extlocationname --json '{ "changes": [{"principal": "adb360-sp", "add" : ["ALL_PRIVILEGES"]}] }'
 else
     echo "external location $extlocationname found, skipping creation"
 fi
@@ -93,7 +93,7 @@ then
     echo "catalog $catname not found, creating it"
     cat=$(databricks catalogs create  $catname --storage-root $extlocationurl --output json)
     # granting devcat-admins all privileges
-    databricks grants update catalog $catname --json '{ "changes": [{"principal": "prdcreds", "add" : ["ALL_PRIVILEGES"]}] }'
+    databricks grants update catalog $catname --json '{ "changes": [{"principal": "adb360-sp", "add" : ["ALL_PRIVILEGES"]}] }'
 
     
     databricks grants update catalog $catname --json '{
