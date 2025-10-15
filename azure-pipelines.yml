@@ -3,7 +3,7 @@ name: Deploy-IAC
 trigger:
   branches:
     include:
-      - dev
+      - devy
   paths:
     exclude:
       - '*'
