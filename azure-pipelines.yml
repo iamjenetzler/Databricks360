@@ -32,7 +32,7 @@ stages:
   - job: UpdateVMJob
     displayName: Update VMSS Job
     pool:
-      name: MySelfHostedPool   # <-- your pool
+      name: jensazureagentpool   # <-- your pool
     steps:
     # 1) Ensure Azure CLI exists *before* AzureCLI@2 logs in
     - task: Bash@3
