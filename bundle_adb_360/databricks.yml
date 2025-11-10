@@ -13,7 +13,7 @@ run_as:
 variables:
   emailrecipient: 
     description: email address of the recipient of failure notifications
-    default: <email address of recipient>
+    default: jeetzler@microsoft.com
   devworkspace:
     description: workspace url for dev
     default: <dev workspace url>
@@ -22,16 +22,16 @@ variables:
     default: <prd workspace url>
   username:
     description: adb360-sp uid
-    default: <appid of adb360-sp>
+    default: a1a2e639-2470-4a50-b6c2-7f9de92563bd
   bronzestorageaccountname:
     description: the storage account name for bronze
-    default: <dev bronze storage account name>
+    default: dlg2prdwestus2adb360s5w2
   catalogname:
     description: the catalog to use
-    default: catadb360dev
+    default: catadb360prd
   schemaname:
     description: the schema to use
-    default: schemaadb360dev
+    default: schemaadb360prd
 
 targets:
   # The 'dev' target, for development purposes. This target is the default.
