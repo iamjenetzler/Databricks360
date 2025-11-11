@@ -43,10 +43,10 @@ volume = dbutils.widgets.get('volume')
 # COMMAND ----------
 
 #variables
-customerTableNoOfRows = 10
-restaurantsTableNoOfRows = 5
-createMenuesConsumedTableNoOfRows = 100
-fkMaxAddressNumber = 20
+customerTableNoOfRows = 1000git
+restaurantsTableNoOfRows = 500
+createMenuesConsumedTableNoOfRows = 10000
+fkMaxAddressNumber = 2000
 
 destPath = f'/Volumes/{catalog}/{schema}/{volume}/historical/'
 
